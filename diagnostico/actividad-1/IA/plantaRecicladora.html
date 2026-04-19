@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planta Recicladora</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Planta Recicladora</h1>
+    </header>
+    <main>
+        <section>
+            <h2>Stock de materiales</h2>
+            <div class="container">
+                <div class="left">
+                    <table id="materialsTable">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Cantidad</th>
+                                <th>Unidad</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="right">
+                    <h3>Agregar material</h3>
+                    <form id="addForm">
+                        <label>Nombre<br><input type="text" id="name" required></label>
+                        <label>Cantidad inicial<br><input type="number" id="quantity" min="0" step="any" value="0" required></label>
+                        <label>Unidad<br>
+                            <select id="unit">
+                                <option value="kg">kg</option>
+                                <option value="units">unidades</option>
+                                <option value="m3">m³</option>
+                                <option value="other">otro</option>
+                            </select>
+                        </label>
+                        <button type="submit">Agregar</button>
+                    </form>
+
+                    <h3>Operación sobre stock</h3>
+                    <form id="opForm">
+                        <label>Material<br>
+                            <select id="materialSelect"></select>
+                        </label>
+                        <label>Tipo de operación<br>
+                            <select id="opType">
+                                <option value="purchase">Compra (+)</option>
+                                <option value="sale">Venta (-)</option>
+                            </select>
+                        </label>
+                        <label>Cantidad<br><input type="number" id="opAmount" min="0.0001" step="any" value="1" required></label>
+                        <button type="submit">Aplicar</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+    const API = 'http://localhost:5000';
+
+    async function fetchMaterials() {
+        const res = await fetch(API + '/materials');
+        return res.json();
+    }
+
+    function renderMaterials(list) {
+        const tbody = document.querySelector('#materialsTable tbody');
+        tbody.innerHTML = '';
+        const sel = document.getElementById('materialSelect');
+        sel.innerHTML = '';
+        list.forEach(m => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${m.name}</td>
+                <td>${m.quantity}</td>
+                <td>${m.unit}</td>
+                <td>
+                    <button data-id="${m.id}" class="inc">+</button>
+                    <button data-id="${m.id}" class="dec">-</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = m.name;
+            sel.appendChild(opt);
+        });
+    }
+
+    async function loadAndRender() {
+        const list = await fetchMaterials();
+        renderMaterials(list);
+    }
+
+    document.getElementById('addForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const name = document.getElementById('name').value.trim();
+        const quantity = parseFloat(document.getElementById('quantity').value);
+        const unit = document.getElementById('unit').value;
+        if (!name) return alert('Nombre requerido');
+        const res = await fetch(API + '/materials', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({name, quantity, unit})
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            return alert(err.error || 'Error');
+        }
+        e.target.reset();
+        loadAndRender();
+    });
+
+    document.getElementById('opForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const id = document.getElementById('materialSelect').value;
+        const type = document.getElementById('opType').value;
+        const amount = parseFloat(document.getElementById('opAmount').value);
+        if (!id) return alert('Seleccione material');
+        const delta = type === 'purchase' ? amount : -amount;
+        const res = await fetch(API + `/materials/${id}/adjust`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({delta})
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            return alert(err.error || 'Error');
+        }
+        e.target.reset();
+        loadAndRender();
+    });
+
+    document.addEventListener('click', async (e) => {
+        if (e.target.matches('button.inc') || e.target.matches('button.dec')) {
+            const id = e.target.dataset.id;
+            const delta = e.target.matches('button.inc') ? 1 : -1;
+            const res = await fetch(API + `/materials/${id}/adjust`, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({delta})
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                return alert(err.error || 'Error');
+            }
+            loadAndRender();
+        }
+    });
+
+    loadAndRender();
+    </script>
+</body>
+</html>
+        

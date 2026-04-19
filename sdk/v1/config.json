@@ -1,0 +1,13 @@
+{
+	"server":
+	{
+		"ip": "localhost",
+		"port": 3000,
+		"default_path": "./default.html"
+	},
+
+	"database":
+	{
+		"path": "./db.sqlite3"
+	}
+}

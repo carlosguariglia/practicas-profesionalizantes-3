@@ -1,0 +1,17 @@
+Formato de entrega: Repositorio git en ruta : sdk/v1
+
+Consigna
+A partir del código desarrollado en clases 17/4, que incorpora una primera aproximación a la construcción del framework de trabajo para las prácticas. Se solicita:
+
+-Adecuar todo aspecto relativo a configuraciones a su delegación correspondiente en el archivo config.json
+
+-Adecuar la función register_handler de modo tal que obtenga los datos del formulario de la vista general y los inserte en la base de datos de forma adecuada.
+
+-Adecuar la implementación de modo que register_handler reciba los datos del formulario a través de una petición http (POST).
+
+-Proponga una modularización de archivos que permita separar convenientemente los casos de uso de la aplicación respecto de la estructura base del código servidor.
+
+Consideraciones
+-No incluya en el repositorio de trabajo la carpeta node_modules
+-No modularice la interfaz gráfica en archivos separados (código html) 
+-No utilice frameworks

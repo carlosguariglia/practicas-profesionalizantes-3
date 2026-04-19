@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planta Recicladora</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Planta Recicladora</h1>
+    </header>
+    <main>
+        <section>
+            <h2>Stock de materiales</h2>
+            <div class="container">
+                <div class="left">
+                    <table id="materialsTable">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Cantidad</th>
+                                <th>Unidad</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="right">
+                    <h3>Agregar material</h3>
+                    <form id="addForm">
+                        <label>Nombre<br><input type="text" id="name" required></label>
+                        <label>Cantidad inicial<br><input type="number" id="quantity" min="0" step="any" value="0" required></label>
+                        <label>Unidad<br>
+                            <select id="unit">
+                                <option value="kg">kg</option>
+                                <option value="units">unidades</option>
+                                <option value="m3">m³</option>
+                                <option value="other">otro</option>
+                            </select>
+                        </label>
+                        <button type="submit">Agregar</button>
+                    </form>
+
+                    <h3>Operación sobre stock</h3>
+                    <form id="opForm">
+                        <label>Material<br>
+                            <select id="materialSelect"></select>
+                        </label>
+                        <label>Tipo de operación<br>
+                            <select id="opType">
+                                <option value="purchase">Compra (+)</option>
+                                <option value="sale">Venta (-)</option>
+                            </select>
+                        </label>
+                        <label>Cantidad<br><input type="number" id="opAmount" min="0.0001" step="any" value="1" required></label>
+                        <button type="submit">Aplicar</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </main>
+
+</body>
+</html>
+        

@@ -1,0 +1,38 @@
+
+con una tabla que contenga
+
+ID					NAME				CANTIDAD							UNIDAD
+entero UNIQUE		texto UNIQUE		real (no puede ser negativo)		texto
+
+
+Luego por queries va editando la tabla de la base de datos
+
+agregar nuevo material
+nuevo ID, nombre,cantidad,unidad
+
+
+comprar
+edita la cantidad (suma a cantidad el nuevo valor) no iporta si son kg, m3 o unidades son todos numeros por eso la tabla tiene un indicador unidad
+para saber ese numero que representa
+
+vender
+edita la cantidad (resta a cantidad el nuevo valor, verificando que Cantidad sea mayor o igual que la cantidad a vender)
+
+El frontend muestra la tabla con los valores actuales, una seccion agregar nuevo material y otra que indique la compra o venta
+no se llevan registros de las transacciones (quien compro/vendio que) solamente se lleva el manejo del stock.
+
+
+Que conocimientos o habilidades necesito:
+
+- Crear una base de datos
+- Crear un frontend
+- Crear un backend y conectar la base de datos
+- Conectar el back y el front
+- Crear una tabla en el frontend para visualizar los datos (stock materiales)
+- crear una seccion en el frontend para crear un nuevo material
+- crear una seccion en el frontend para ingresar compras y ventas
+- crear en el backend a partir del front crear un nuevo material una querie para agregar una fila a la tabla de material
+- crear en el backend a partir del front para agregar una compra o venta, actualizar el stock
+
+
+ 
