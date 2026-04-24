@@ -225,6 +225,8 @@ router.set('/', default_handler )
 router.set('/login', login_handler );
 router.set('/register', register_handler );
 router.set('/insertar-usuario', insertarUsuario_handler );
+// esta ruta es para listar los usuarios por consola pero solo en desarrollo.
+router.set('/listar-usuarios', listarUsuarios_handler );
 
 //Despachador principal
 async function request_dispatcher(request, response)
@@ -264,6 +266,10 @@ let server = createServer(request_dispatcher);
 server.listen(config.server.port, config.server.ip, start);
 
 // listar usuarios de la base de datos (solo para verificar que se haya insertado el usuario admin correctamente)
+
+function listarUsuarios(db)
+{
+  
 db.all('SELECT * FROM user', (err, rows) => 
 {
   if (err) 
@@ -277,3 +283,12 @@ db.all('SELECT * FROM user', (err, rows) =>
     console.log(`ID: ${row.id}, Username: ${row.username}, Password: ${row.password}`);
   });
 });
+}
+
+function listarUsuarios_handler(request, response)
+{
+  listarUsuarios(db);
+  response.writeHead(200, { 'Content-Type': 'application/json' });
+  response.end(JSON.stringify({ status: 'success', message: 'Usuarios listados en consola' }));
+}
+

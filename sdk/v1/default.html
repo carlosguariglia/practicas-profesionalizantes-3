@@ -24,13 +24,13 @@
 				this.insertButton.textContent = 'Insertar Usuario';  
 				this.appendChild(this.insertButton);
 
-			/*
+			
     		// boton para mostrar usuarios
 				this.showButton = document.createElement('button');
 				this.showButton.textContent = 'Mostrar Usuarios';
 				this.appendChild(this.showButton);
 			
-			*/	
+				
 			
 
 			}  // fin del constructor
@@ -58,21 +58,22 @@
 									);
 	}
 
-	/*
+	
 	onbtnlistarUsuariosclick() {
     // Aquí se llamaría a la función para listar los usuarios desde la base de datos
+	// por ahora solo lo muestra por consola
 	fetch('/listar-usuarios')
 	}
-	*/
+
 
 connectedCallback() {
     this.insertButton.onclick = this.onbtninsertarUsuariosclick.bind(this);
-    //this.showButton.onclick = this.onbtnlistarUsuariosclick.bind(this);
+    this.showButton.onclick = this.onbtnlistarUsuariosclick.bind(this);
 	}
 
 disconnectedCallback() {
     this.insertButton.onclick = null;
-    //this.showButton.onclick = null;
+    this.showButton.onclick = null;
 	}
 
 }  // fin de la clase menu
