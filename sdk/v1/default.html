@@ -5,13 +5,89 @@
 		<title>Login</title>
 	</head>
 	<body>
-		<h1>Registro de usuarios</h1>
-		<form action="/register" method="get">
-			<label>Usuario:</label>
-			<input name="username" required><br>
-			<label>Password:</label>
-			<input type="password" name="password" required><br>
-			<button type="submit">Crear usuario</button>
-		</form>
 	</body>
+
+	<script>
+	// Aca se agregaran los webcomponents (en lugar de un archivo separado)
+		class Menu extends HTMLElement {
+			constructor() {
+				super();
+
+    		// titulo del menu
+				this.titleElement = document.createElement('h1');
+				this.titleElement.textContent = 'Menú Principal';
+				this.appendChild(this.titleElement);
+				
+
+    		// boton para instertar usuario
+				this.insertButton = document.createElement('button');
+				this.insertButton.textContent = 'Insertar Usuario';  
+				this.appendChild(this.insertButton);
+
+			/*
+    		// boton para mostrar usuarios
+				this.showButton = document.createElement('button');
+				this.showButton.textContent = 'Mostrar Usuarios';
+				this.appendChild(this.showButton);
+			
+			*/	
+			
+
+			}  // fin del constructor
+
+
+	onbtninsertarUsuariosclick() 	{
+    // Aquí se llamaría a la función para insertar un nuevo usuario en la base de datos
+		let username = prompt("Ingrese el nombre de usuario:");
+		let password = prompt("Ingrese la contraseña:");
+		fetch('/insertar-usuario', {
+									method: 'POST',
+									headers: {'Content-Type': 'application/json'
+									},
+									body: JSON.stringify({ username, password })
+									}).then(response => {
+														if (response.ok) {
+															alert('Usuario insertado correctamente');
+														} else {
+															alert('Error al insertar el usuario');
+														}
+														}).catch(error => {
+															console.error('Error:', error);
+															alert('Error al insertar el usuario');
+														}
+									);
+	}
+
+	/*
+	onbtnlistarUsuariosclick() {
+    // Aquí se llamaría a la función para listar los usuarios desde la base de datos
+	fetch('/listar-usuarios')
+	}
+	*/
+
+connectedCallback() {
+    this.insertButton.onclick = this.onbtninsertarUsuariosclick.bind(this);
+    //this.showButton.onclick = this.onbtnlistarUsuariosclick.bind(this);
+	}
+
+disconnectedCallback() {
+    this.insertButton.onclick = null;
+    //this.showButton.onclick = null;
+	}
+
+}  // fin de la clase menu
+
+
+customElements.define('main-menu', Menu);
+
+function main() {
+	let myMenu = new Menu;
+	document.body.appendChild(myMenu);
+}
+
+window.onload = main;
+
+</script>
+
+
 </html>

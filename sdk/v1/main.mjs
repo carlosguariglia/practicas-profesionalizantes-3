@@ -96,43 +96,15 @@ db.exec(sql, (err) => {
 
 // ****************   BLOQUE DE LÓGICA DE NEGOCIO   ****************
 
-export function insertarUsuario(db) 
-{
-  const sql = `
-    INSERT INTO user (username, password)
-    VALUES (?, ?)
-  `;
-
-  const username = 'usuario_demo';
-  const password = 'password123';
-
+function insertarUsuario(db, username, password) {
+  const sql = 'INSERT INTO user (username, password) VALUES (?, ?)';
   return new Promise((resolve, reject) => {
     db.run(sql, [username, password], function (err) {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      resolve({
-        id: this.lastID,
-        username,
-        password
-      });
+      if (err) return reject(err);
+      resolve({ id: this.lastID, username, password });
     });
   });
 }
-
-// Uso
-/*
-insertarUsuario(db)
-  .then((resultado) => {
-    console.log('Usuario insertado:', resultado);
-  })
-  .catch((error) => {
-    console.error('Error al insertar:', error.message);
-  });
-*/
-
 
 //Lógica de negocio / Modelo (Son independientes de protocolos, comunicaciones y servidor)
 function login( input )
@@ -159,31 +131,6 @@ function login( input )
 
 	return output;
 }
-
-function register( username, password )
-{
-	//Debe ejecutar el insert correspondiente...
-}
-
-//--------------
-
-// Listar usuarios
-
-function listarUsuarios(db) {
-  const sql = 'SELECT * FROM user';
-  return new Promise((resolve, reject) => {
-    db.all(sql, [], (err, rows) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      console.log('Usuarios en la base de datos:');
-      resolve(rows);
-       
-    });
-  });
-}
-
 
 
 // ****************   BLOQUE DE RUTEO Y DESPACHO   ****************
@@ -216,7 +163,11 @@ function default_handler(request, response)
     }
 }
 
-function register_handler(request, response)
+function register_handler(request, response)       //TODO: hay que hacer que reciba los datos desde el html y lo agrgue a la base de datos,
+                                                  //  para eso hay que hacer un formulario en el html y luego parsear los datos que 
+                                                  // llegan por query params (o por body si se hace un POST) y luego llamar a la función 
+                                                  // register con esos datos para que los inserte en la base de datos.
+                                                  // ACA hay que poner los 2 casos el de GET y el de POST (esto si se usa formato REST)
 {
 	const url = new URL(request.url, 'http://' + config.server.ip);
     const input = Object.fromEntries(url.searchParams);
@@ -225,6 +176,38 @@ function register_handler(request, response)
 
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify(output));
+}
+
+function insertarUsuario_handler(request, response)
+{
+  if (request.method !== 'POST') {       
+    response.writeHead(405, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ status: 'error', message: 'Método no permitido' }));
+    return;
+  }
+
+  let body = '';
+  request.on('data', chunk => {
+    body += chunk.toString();
+  });
+
+  request.on('end', () => {
+    try {
+      const { username, password } = JSON.parse(body);
+      insertarUsuario(db, username, password)
+        .then(result => {
+          response.writeHead(200, { 'Content-Type': 'application/json' });
+          response.end(JSON.stringify({ status: 'success', user: result }));
+        })
+        .catch(err => {
+          response.writeHead(500, { 'Content-Type': 'application/json' });
+          response.end(JSON.stringify({ status: 'error', message: err.message }));
+        });
+    } catch (err) {
+      response.writeHead(400, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ status: 'error', message: 'Datos inválidos' }));
+    }
+  });
 }
 
 
@@ -239,7 +222,7 @@ let router = new Map();   //
 router.set('/', default_handler )
 router.set('/login', login_handler );
 router.set('/register', register_handler );
-
+router.set('/insertar-usuario', insertarUsuario_handler );
 
 //Despachador principal
 async function request_dispatcher(request, response)
@@ -264,6 +247,7 @@ async function request_dispatcher(request, response)
 // ****************   BLOQUE DE INICIALIZACIÓN DEL SERVIDOR   ****************
 function start()
 {
+  console.clear();
 	console.log('Servidor ejecutándose... en el puerto ' + config.server.port + ' y la IP ' + config.server.ip);
   console.log('Ingresa a http://' + config.server.ip + ':' + config.server.port + ' en tu navegador para acceder a la aplicación.');
   console.log('Presiona Ctrl+C para detener el servidor.');
@@ -277,13 +261,14 @@ function start()
 let server = createServer(request_dispatcher);
 server.listen(config.server.port, config.server.ip, start);
 
-// mostrar los usuarios pero no las contraseñas
-listarUsuarios(db)
-  .then((usuarios) => {
-    usuarios.forEach((usuario) => {
-      console.log(`ID: ${usuario.id}, Username: ${usuario.username}`);
-    });
-  })
-  .catch((error) => {
-    console.error('Error al listar usuarios:', error.message);
+// listar usuarios de la base de datos (solo para verificar que se haya insertado el usuario admin correctamente)
+db.all('SELECT * FROM user', (err, rows) => {
+  if (err) {
+    console.error('Error al listar usuarios:', err.message);
+    return;
+  }
+  console.log('Usuarios en la base de datos:');
+  rows.forEach((row) => {
+    console.log(`ID: ${row.id}, Username: ${row.username}, Password: ${row.password}`);
   });
+});
