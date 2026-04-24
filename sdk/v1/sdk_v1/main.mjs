@@ -43,8 +43,10 @@ function connect_db( path )
 {
   const dbPath = resolve(path);
 
-  const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
+  const db = new sqlite3.Database(dbPath, (err) => 
+{
+    if (err) 
+{
       throw new Error(`Error al conectar a la base de datos: ${err.message}`);
     }
   });
@@ -66,9 +68,12 @@ export function insertarUsuario(db)
   const username = 'usuario_demo';
   const password = 'password123';
 
-  return new Promise((resolve, reject) => {
-    db.run(sql, [username, password], function (err) {
-      if (err) {
+  return new Promise((resolve, reject) => 
+{
+    db.run(sql, [username, password], function (err) 
+{
+      if (err) 
+{
         reject(err);
         return;
       }

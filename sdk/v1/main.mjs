@@ -59,9 +59,11 @@ function connect_db( path )  // se define la función connect_db que recibe como
   // se crea una nueva instancia de sqlite3.Database utilizando la ruta resuelta y se asigna a la variable db.
   // se proporciona una función de callback para manejar cualquier error que pueda ocurrir al conectar a la base de datos.
   // Si ocurre un error, se lanza una nueva excepción con un mensaje descriptivo. 
- 
-  const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
+
+  const db = new sqlite3.Database(dbPath, (err) => 
+{
+    if (err) 
+{
       throw new Error(`Error al conectar a la base de datos: ${err.message}`);
     }
   });
@@ -87,7 +89,8 @@ const sql = `
     SELECT 'admin','1234'
     WHERE NOT EXISTS (SELECT 1 FROM user WHERE username = 'admin');
 `;
-db.exec(sql, (err) => {
+db.exec(sql, (err) => 
+{
   if (err) console.error('Init DB error:', err.message);
   else console.log('Base de datos preparada (tabla + admin).');
 });
@@ -95,16 +98,6 @@ db.exec(sql, (err) => {
 
 
 // ****************   BLOQUE DE LÓGICA DE NEGOCIO   ****************
-
-function insertarUsuario(db, username, password) {
-  const sql = 'INSERT INTO user (username, password) VALUES (?, ?)';
-  return new Promise((resolve, reject) => {
-    db.run(sql, [username, password], function (err) {
-      if (err) return reject(err);
-      resolve({ id: this.lastID, username, password });
-    });
-  });
-}
 
 //Lógica de negocio / Modelo (Son independientes de protocolos, comunicaciones y servidor)
 function login( input )
@@ -178,40 +171,49 @@ function register_handler(request, response)       //TODO: hay que hacer que rec
     response.end(JSON.stringify(output));
 }
 
-function insertarUsuario_handler(request, response)
+function getRequestbody(request)
 {
-  if (request.method !== 'POST') {       
-    response.writeHead(405, { 'Content-Type': 'application/json' });
-    response.end(JSON.stringify({ status: 'error', message: 'Método no permitido' }));
-    return;
-  }
-
-  let body = '';
-  request.on('data', chunk => {
-    body += chunk.toString();
-  });
-
-  request.on('end', () => {
-    try {
-      const { username, password } = JSON.parse(body);
-      insertarUsuario(db, username, password)
-        .then(result => {
-          response.writeHead(200, { 'Content-Type': 'application/json' });
-          response.end(JSON.stringify({ status: 'success', user: result }));
-        })
-        .catch(err => {
-          response.writeHead(500, { 'Content-Type': 'application/json' });
-          response.end(JSON.stringify({ status: 'error', message: err.message }));
-        });
-    } catch (err) {
-      response.writeHead(400, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ status: 'error', message: 'Datos inválidos' }));
-    }
-  });
+  return new Promise((resolve, reject) =>
+  {
+    let body = '';
+    request.on('data', chunk =>
+    {
+      body += chunk.toString();
+    });
+    request.on('end', () =>
+    {
+      resolve(body);
+    });
+    });
 }
 
+function insertarUsuario(db, username, password) 
+{
+  let sql = 'INSERT INTO user (username, password) VALUES (?, ?)';
+  db.run(sql, [username, password]);
+  }
 
-          //Mecanismo de ruteo/despacho
+async function insertarUsuario_handler(request, response)
+{
+  if (request.method === 'POST')
+  {  
+      
+  let data = await getRequestbody(request)     
+  let obj = JSON.parse(data);
+  let username = obj.username;
+  let password = obj.password;
+  insertarUsuario(db, username, password);
+
+  response.writeHead(200, { 'Content-Type': 'application/json' });
+  response.end(JSON.stringify({ status: 'success', username: username }));
+  }  
+  else 
+  {  
+    response.writeHead(405, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ status: 'error', message: 'Método no permitido' }));
+  }
+}
+
 // Se crea un MAP llamado router que asocia cada ruta (path) con su correspondiente handler 
 // (función que maneja la solicitud para esa ruta).
 // Se iran agregando las rutas y sus handlers al MAP utilizando el método set, donde la clave es la ruta
@@ -262,13 +264,16 @@ let server = createServer(request_dispatcher);
 server.listen(config.server.port, config.server.ip, start);
 
 // listar usuarios de la base de datos (solo para verificar que se haya insertado el usuario admin correctamente)
-db.all('SELECT * FROM user', (err, rows) => {
-  if (err) {
+db.all('SELECT * FROM user', (err, rows) => 
+{
+  if (err) 
+{
     console.error('Error al listar usuarios:', err.message);
     return;
   }
   console.log('Usuarios en la base de datos:');
-  rows.forEach((row) => {
+  rows.forEach((row) => 
+{
     console.log(`ID: ${row.id}, Username: ${row.username}, Password: ${row.password}`);
   });
 });
