@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+	<head>
+		<meta charset="UTF-8">
+		<title>Login</title>
+	</head>
+	<body>
+	</body>
+
+	<script>
+	// Aca se agregaran los webcomponents (en lugar de un archivo separado)
+		class Menu extends HTMLElement {
+			constructor() {
+				super();
+
+    			// titulo del menu
+				this.titleElement = document.createElement('h1');
+				this.titleElement.textContent = 'Menú Principal';
+				this.appendChild(this.titleElement);
+				
+				// creo una tabla para mostrar los botones de las acciones
+				// asi quedaran ordenados porque debere hacer un abml de usuarios, grupos, endpoints y las realaciones access y members
+				this.table = document.createElement('table');
+				
+				this.row1 = document.createElement('tr');
+				this.row2 = document.createElement('tr');
+				this.row3 = document.createElement('tr');
+				
+				this.table.appendChild(this.row1);
+				this.table.appendChild(this.row2);
+				this.table.appendChild(this.row3);
+			
+
+			
+			// boton para insertar usuario
+				this.insertUserBtn = document.createElement('button');
+				this.insertUserBtn.textContent = 'Insertar Usuario';  
+				this.row1.appendChild(this.insertUserBtn);
+			// boton para borrar usuario
+				this.deleteUserBtn = document.createElement('button');
+				this.deleteUserBtn.textContent = 'Borrar Usuario';
+				this.row1.appendChild(this.deleteUserBtn);
+			// boton para modificar usuario
+				this.updateUserBtn = document.createElement('button');
+				this.updateUserBtn.textContent = 'Modificar Usuario';
+				this.row1.appendChild(this.updateUserBtn);
+				// boton para mostrar usuarios
+				this.showUsersBtn = document.createElement('button');
+				this.showUsersBtn.textContent = 'Mostrar Usuarios por Consola';
+				this.row1.appendChild(this.showUsersBtn);
+			
+			// boton para insertar grupo
+				this.insertGroupBtn = document.createElement('button');
+				this.insertGroupBtn.textContent = 'Insertar Grupo';  
+				this.row2.appendChild(this.insertGroupBtn);
+			// boton para borrar grupo
+				this.deleteGroupBtn = document.createElement('button');
+				this.deleteGroupBtn.textContent = 'Borrar Grupo';
+				this.row2.appendChild(this.deleteGroupBtn);
+			// boton para modificar grupo
+				this.updateGroupBtn = document.createElement('button');
+				this.updateGroupBtn.textContent = 'Modificar Grupo';
+				this.row2.appendChild(this.updateGroupBtn);
+			// boton para mostrar grupos
+				this.showGroupsBtn = document.createElement('button');
+				this.showGroupsBtn.textContent = 'Mostrar Grupos por Consola';
+				this.row2.appendChild(this.showGroupsBtn);
+
+			// boton para insertar acciones (endpoints)
+				this.insertEndpointBtn = document.createElement('button');
+				this.insertEndpointBtn.textContent = 'Insertar Endpoint';  
+				this.row3.appendChild(this.insertEndpointBtn);
+			// boton para borrar endpoint
+				this.deleteEndpointBtn = document.createElement('button');
+				this.deleteEndpointBtn.textContent = 'Borrar Endpoint';
+				this.row3.appendChild(this.deleteEndpointBtn);
+			// boton para modificar endpoint
+				this.updateEndpointBtn = document.createElement('button');
+				this.updateEndpointBtn.textContent = 'Modificar Endpoint';
+				this.row3.appendChild(this.updateEndpointBtn);
+			// boton para mostrar endpoints
+				this.showEndpointsBtn = document.createElement('button');
+				this.showEndpointsBtn.textContent = 'Mostrar Endpoints por Consola';
+				this.row3.appendChild(this.showEndpointsBtn);
+
+				this.appendChild(this.table);
+
+			}  // fin del constructor
+
+
+onbtninsertarUsuarioClick() 	{
+    // Aquí se llamaría a la función para insertar un nuevo usuario en la base de datos
+		let username = prompt("Ingrese el nombre de usuario:");
+		let password = prompt("Ingrese la contraseña:");
+		fetch('/register', {
+									method: 'POST',
+									headers: {'Content-Type': 'application/json'
+									},
+									body: JSON.stringify({ username, password })
+									}).then(response => {
+														if (response.ok) {
+															alert('Usuario insertado correctamente');
+														} else {
+															alert('Error al insertar el usuario');
+														}
+														}).catch(error => {
+															console.error('Error:', error);
+															alert('Error al insertar el usuario');
+														}
+									);
+	}
+
+	async onbtndeleteUsuarioClick() 
+	{
+	// Aquí se llamaría a la función para borrar un usuario de la base de datos
+		let username = prompt("Ingrese el nombre de usuario a borrar:");
+
+		if (!username) return;
+
+	// 1) comprobar existencia en el servidor antes de pedir nuevos datos
+	try {
+		const checkResp = await fetch('/check-user', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ username })
+		});
+		if (!checkResp.ok) { alert('Error comprobando usuario.'); return; }
+		const checkJson = await checkResp.json();
+		if (!checkJson.exists) { alert('Usuario no encontrado.'); return; }
+	} catch (err) {
+		console.error(err);
+		alert('Error comprobando usuario.');
+		return;
+	}
+
+
+
+		fetch('/delete-user', {
+								method: 'POST',
+								headers: {'Content-Type': 'application/json'
+										},
+								body: JSON.stringify({ username })
+							}).then(response => {
+												if (response.ok) {
+													alert('Usuario borrado correctamente');
+												} else {
+														alert('Error al borrar el usuario');
+														}
+												}).catch(error => {
+															console.error('Error:', error);
+															alert('Error al borrar el usuario');
+																}
+															);
+	}
+
+
+
+async onbtnupdateUsuarioClick() {
+	const username = prompt("Ingrese el nombre de usuario a modificar:");
+	if (!username) return;
+
+	// 1) comprobar existencia en el servidor antes de pedir nuevos datos
+	try {
+		const checkResp = await fetch('/check-user', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ username })
+		});
+		if (!checkResp.ok) { alert('Error comprobando usuario.'); return; }
+		const checkJson = await checkResp.json();
+		if (!checkJson.exists) { alert('Usuario no encontrado.'); return; }
+	} catch (err) {
+		console.error(err);
+		alert('Error comprobando usuario.');
+		return;
+	}
+
+	// 2) pedir nuevos datos solo si existe
+	const newUsernameInput = prompt("Ingrese el nuevo nombre de usuario (enter para dejar igual):");
+	const newUsername = (newUsernameInput === null || newUsernameInput.trim() === "") ? username : newUsernameInput.trim();
+	const newPassword = prompt("Ingrese la nueva contraseña:");
+	if (!newPassword) { alert('Contraseña no válida.'); return; }
+
+	const payload = { username, newPassword };
+	if (newUsername !== username) payload.newUsername = newUsername;
+
+	try {
+		const resp = await fetch('/update-user', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
+		});
+
+		if (resp.status === 200) {
+			const j = await resp.json().catch(() => ({}));
+			if (j.updated && j.updated > 0) alert('Usuario modificado correctamente.');
+			else alert('No se modificó ningún usuario (usuario no encontrado).');
+		} else if (resp.status === 404) {
+			alert('Usuario no encontrado.');
+		} else if (resp.status === 409) {
+			alert('Nombre de usuario ya existe.');
+		} else {
+			const j = await resp.json().catch(() => null);
+			alert(j?.message || 'Error al modificar el usuario.');
+		}
+	} catch (err) {
+		console.error(err);
+		alert('Error al modificar el usuario.');
+	}
+}
+	
+	onbtnlistarUsuariosClick() {
+    // Aquí se llamaría a la función para listar los usuarios desde la base de datos
+	// por ahora solo lo muestra por consola
+	fetch('/list-users')
+	}
+
+
+connectedCallback() {
+    this.insertUserBtn.onclick = this.onbtninsertarUsuarioClick.bind(this);
+	this.deleteUserBtn.onclick = this.onbtndeleteUsuarioClick.bind(this);
+	this.updateUserBtn.onclick = this.onbtnupdateUsuarioClick.bind(this);
+    this.showUsersBtn.onclick = this.onbtnlistarUsuariosClick.bind(this);
+
+	this.insertGroupBtn.onclick = this.onbtninsertarGrupoClick.bind(this);
+	this.deleteGroupBtn.onclick = this.onbtndeleteGrupoClick.bind(this);
+	this.updateGroupBtn.onclick = this.onbtnupdateGrupoClick.bind(this);
+	this.showGroupsBtn.onclick = this.onbtnlistarGruposClick.bind(this);
+
+	this.insertEndpointBtn.onclick = this.onbtninsertarEndpointClick.bind(this);
+	this.deleteEndpointBtn.onclick = this.onbtndeleteEndpointClick.bind(this);
+	this.updateEndpointBtn.onclick = this.onbtnupdateEndpointClick.bind(this);
+	this.showEndpointsBtn.onclick = this.onbtnlistarEndpointsClick.bind(this);
+	}
+
+disconnectedCallback() {
+    this.insertUserBtn.onclick = null;
+	this.deleteUserBtn.onclick = null;
+	this.updateUserBtn.onclick = null;
+    this.showUsersBtn.onclick = null;
+
+	this.insertGroupBtn.onclick = null;
+	this.deleteGroupBtn.onclick = null;
+	this.updateGroupBtn.onclick = null;
+	this.showGroupsBtn.onclick = null;
+
+	this.insertEndpointBtn.onclick = null;
+	this.deleteEndpointBtn.onclick = null;
+	this.updateEndpointBtn.onclick = null;
+	this.showEndpointsBtn.onclick = null;
+	}
+
+}  // fin de la clase menu
+
+
+customElements.define('main-menu', Menu);
+
+function main() {
+	let myMenu = new Menu;
+	document.body.appendChild(myMenu);
+}
+
+window.onload = main;
+
+</script>
+
+
+</html>
