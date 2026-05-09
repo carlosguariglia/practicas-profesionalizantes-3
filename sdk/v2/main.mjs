@@ -169,7 +169,9 @@ async function register_handler(request, response) // hay que hacer que reciba l
     }
 }
 
-async function getRequestbody(request)  // esta funcion es la que "arma" el paquete que se envia por JSON
+//  -----------------  Funcion auxiliar para el manejo de JSON entre cliente y servidor  -----------------
+// esta funcion es la que "arma" el paquete que se envia por JSON
+async function getRequestbody(request)  
 {
 return new Promise((resolve, reject) =>
 {
@@ -225,6 +227,7 @@ async function delete_user_handler(request, response)
             {
                 response.writeHead(500, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ status: 'error', message: err.message }));
+                return;
             }
     }else
     {
@@ -350,6 +353,7 @@ async function check_user_handler(request, response) {
         } catch (err) {
             response.writeHead(500, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify({ status: 'error', message: err.message }));
+        
         }
     } else {
         response.writeHead(405, { 'Content-Type': 'application/json' });
@@ -379,7 +383,7 @@ async function register_group_handler(request, response) //TODO: hay que hacer q
     {  
         let data = await getRequestbody(request); // el request llega como un stream, por eso hay que esperar a que llegue todo el body para 
         let obj = JSON.parse(data);               // poder parsearlo, por eso se hace una función getRequestbody que devuelve una promesa que se 
-        let nombregrupo = obj.name;              // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos.
+        let nombregrupo = obj.groupname;              // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos.
         insertarGrupo(db, nombregrupo);    // se llama a la funcion insertarGrupo que inserta en la BD
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ status: 'success', nombre: nombregrupo }));  // se responde con un JSON indicando que el registro fue exitoso y se incluye el username registrado.
@@ -512,7 +516,7 @@ function listarGrupos(db)
         { console.error('Error al listar grupos:', err.message);
             return;
         }
-        ('Grupos en la base de datos:');
+        console.log('Grupos en la base de datos:');
         rows.forEach((row) => {
                             console.log(`ID: ${row.id}, Nombre: ${row.name}`);
                             });
@@ -802,6 +806,16 @@ function insertarUsuarioGrupo(db, idusuario, idgrupo)
     db.run(sql, [idusuario, idgrupo]);
 }
 
+async function chequearUsuarioEnGrupo(db, idusuario, idgrupo)
+{
+    return new Promise((resolve, reject) => {
+        const sql = 'SELECT COUNT(*) as cnt FROM members WHERE id_user = ? AND id_group = ?';
+        db.get(sql, [idusuario, idgrupo], (err, row) => {
+            if (err) return reject(err);
+            resolve(row && row.cnt > 0);
+        });
+    });
+}
 
 //TODO: se deberia chequear que el usuario y el grupo existan antes de asignar
 async function assign_user_to_group_handler(request, response)
@@ -829,34 +843,220 @@ async function assign_user_to_group_handler(request, response)
 }
 
 
-
-function remove_user_from_group_handler(request, response)
+async function removerUsuarioDeGrupo(db, idusuario, idgrupo)
 {
+    return new Promise((resolve, reject) => {
+        const sql = 'DELETE FROM members WHERE id_user = ? AND id_group = ?';
+        db.run(sql, [idusuario, idgrupo], function(err) {
+            if (err) return reject(err);
+            resolve(this.changes); // 0 si no hubo filas, >0 si borró
+        });
+    });
+}
+
+async function remove_user_from_group_handler(request, response)
+{
+    if (request.method === 'POST')    // chequeo si el metodo es POST
+    {  
+        let data = await getRequestbody(request);    // el request llega como un stream, por eso hay que esperar a que llegue todo el body para 
+        let obj = JSON.parse(data);               // poder parsearlo, por eso se hace una función getRequestbody que devuelve una promesa que se 
+        let username = obj.username;              // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener el dato de username.     
+        let groupname = obj.groupname;
+        
+        let idusuario = await retornarIdUsuario(db, username);
+        let idgrupo = await retornarIdGrupo(db, groupname);
+        try {
+            const exists = await chequearUsuarioEnGrupo(db, idusuario, idgrupo);
+            if (!exists) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ status: 'error', message: 'Usuario no encontrado en el grupo' }));
+                return;
+            }
+            const deleted = await removerUsuarioDeGrupo(db, idusuario, idgrupo);
+            if (deleted > 0) 
+            {
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ status: 'success', username }));
+            } else {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ status: 'error', message: 'Usuario no encontrado en el grupo' }));
+            }
+            } catch (err) 
+            {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ status: 'error', message: err.message }));
+                return;
+            }
+    }else
+    {
+        response.writeHead(405, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ status: 'error', message: 'Método no permitido' }));
+    }
+}
+
+//TODO: fuciones para obtener los nombres dando el ID? function retornarNombreUsuario(db, idusuario) y retornarNombreGrupo(db, idgrupo) para mostrar los nombres en vez de los ID al listar los miembros de un grupo. O hacer un JOIN en la consulta SQL para obtener directamente los nombres.
 
 
-}   
+
+function listarMembers(db)
+{   
+    db.all('SELECT * FROM "members"', (err, rows) => { 
+        if (err) 
+        { console.error('Error al listar members:', err.message);
+            return;
+        }
+        console.log('Members en la base de datos:');
+        rows.forEach((row) => {
+                            console.log(`User ID: ${row.id_user}, Group ID: ${row.id_group}`);
+                            });
+                                            });
+}
 
 function list_user_groups_handler(request, response)
 {
-
+    listarMembers(db);
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ status: 'success', message: 'Members listados en consola' }));
 }
+
+
 
 // ------------- FUNCIONES DE ASIGNACIÓN ENDPOINTS-GRUPOS --------------
 
-function assign_endpoint_to_group_handler(request, response)
+function insertarGrupoEndpoint(db, idgrupo, idendpoint) 
 {
-
+    // group es una palabra reservada de SQLite
+    // si se usa ` ` se evitan problemas
+    
+            let sql = 'INSERT INTO `access` (id_group, id_endpoint) VALUES (?, ?)';
+            db.run(sql, [idgrupo, idendpoint]);
+    
 }
 
-function remove_endpoint_from_group_handler(request, response)
+               
+async function chequearGrupoEnEndpoint(db, idgrupo, idendpoint)
 {
+    return new Promise((resolve, reject) => {
+        const sql = 'SELECT COUNT(*) as cnt FROM access WHERE id_group = ? AND id_endpoint = ?';
+        db.get(sql, [idgrupo, idendpoint], (err, row) => {
+            if (err) return reject(err);
+            resolve(row && row.cnt > 0);
+        });
+    });
+}
 
+//TODO: se deberia chequear que el usuario y el grupo existan antes de asignar
+async function assign_endpoint_to_group_handler(request, response)
+{
+    // Implementación para asignar usuario a grupo
+    if (request.method === 'POST')    // chequeo si el metodo es POST
+    {  
+        let data = await getRequestbody(request); // el request llega como un stream, por eso hay que esperar a que llegue todo el body para 
+        let obj = JSON.parse(data);               // poder parsearlo, por eso se hace una función getRequestbody que devuelve una promesa que se 
+        let nombregrupo = obj.groupname;   // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos.
+        let nombreendpoint = obj.endpointname;
+                    
+        let idgrupo = await retornarIdGrupo(db, nombregrupo);
+        let idendpoint = await retornarIdEndpoint(db, nombreendpoint);
+
+        await insertarGrupoEndpoint(db, idgrupo, idendpoint);    // se llama a la funcion insertarGrupoEndpoint que inserta en la BD
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ status: 'success', nombre: nombregrupo }));  // se responde con un JSON indicando que el registro fue exitoso y se incluye el nombre del grupo registrado.
+    }     
+    else 
+    {  
+        response.writeHead(405, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ status: 'error', message: 'Método no permitido' })); // si el método no es POST, se responde con un error indicando que el método no está permitido.
+    }
+}
+
+
+async function removerGrupoEndpoint(db, idgrupo, idendpoint)
+{
+    return new Promise((resolve, reject) => {
+        const sql = 'DELETE FROM access WHERE id_group = ? AND id_endpoint = ?';
+        db.run(sql, [idgrupo, idendpoint], function(err) {
+            if (err) return reject(err);
+            resolve(this.changes); // 0 si no hubo filas, >0 si borró
+        });
+    });
+}
+
+async function remove_endpoint_from_group_handler(request, response)
+{
+    if (request.method === 'POST')    // chequeo si el metodo es POST
+    {  
+        let data = await getRequestbody(request);    // el request llega como un stream, por eso hay que esperar a que llegue todo el body para 
+        let obj = JSON.parse(data);               // poder parsearlo, por eso se hace una función getRequestbody que devuelve una promesa que se 
+        let groupname = obj.groupname;          // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener el dato de username.     
+        let endpointname = obj.endpointname;                      
+        let idgrupo = await retornarIdGrupo(db, groupname);
+        let idendpoint = await retornarIdEndpoint(db, endpointname);
+        try {
+            const exists = await chequearGrupoEnEndpoint(db, idgrupo, idendpoint);
+            if (!exists) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ status: 'error', message: 'Endpoint no encontrado en el grupo' }));
+                return;
+            }
+            const deleted = await removerGrupoEndpoint(db, idgrupo, idendpoint);
+            if (deleted > 0) 
+            {
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ status: 'success', username }));
+                return;
+            } else {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ status: 'error', message: 'Endpoint no encontrado en el grupo' }));
+                return;
+            }
+            } catch (err) 
+            {   // Asegurarse de que no se haya enviado ya una respuesta antes de enviar otra.
+                // solucion de la IA ya que se borraba el grupo pero daba error
+                // deberia hacer todo este sistema de devolver errores o exitos mas simple (por lo menos por ahora)
+                // al principio el sistema de respuestas lo sugirio la IA y funciono pero esta funcion falla
+                if (!response.headersSent) {
+                    response.writeHead(500, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ status: 'error', message: err.message }));
+                    return;
+                }
+                /*
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ status: 'error', message: err.message }));
+                return;
+                */
+            }
+    }else
+    {
+        response.writeHead(405, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ status: 'error', message: 'Método no permitido' }));
+    }
+}
+
+
+
+
+function listaraccess(db)
+{   
+    db.all('SELECT * FROM "access"', (err, rows) => { 
+        if (err) 
+        { console.error('Error al listar Access:', err.message);
+            return;
+        }
+        console.log('Access en la base de datos:');
+        rows.forEach((row) => {
+                            console.log(`Group ID: ${row.id_group}, Endpoint ID: ${row.id_endpoint}`);
+                            });
+                                            });
 }
 
 function list_group_endpoints_handler(request, response)
 {
-
+    listaraccess(db);
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ status: 'success', message: 'Access listados en consola' }));
 }
+
 
 // Se crea un MAP llamado router que asocia cada ruta (path) con su correspondiente handler 
 // (función que maneja la solicitud para esa ruta).
@@ -939,4 +1139,3 @@ console.log('Presiona Ctrl+C para detener el servidor.');
 
 let server = createServer(request_dispatcher);
 server.listen(config.server.port, config.server.ip, start);
-
