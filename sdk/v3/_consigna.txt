@@ -1,0 +1,53 @@
+Formato de entrega: Repositorio git en ruta : sdk/v3
+
+A partir del código desarrollado en sdk/v2, seguiremos introduciendo mejoras estructurales y de funcionalidad a fin
+de acercarnos más al objetivo de tener una plantilla mínima para poder construir sistemas cliente-servidor.
+
+Conceptos
+
+-Autenticador: Es el componente encargado de determinar si el usuario es válido para el sistema y es quién dice ser.
+La forma más barata de autenticación es mediante el uso de una "llave" (contraseña) asociada al nombre de usuario.
+ Si el nombre de usuario y su contraseña o versión cifrada coinciden con las almacenadas en el sistema.
+ Entonces el usuario es válido y legítimo. 
+
+-Autorizador: Es el componente encargado de determinar si un usuario puede o no puede acceder/ejecutar lo que éste quiere.
+
+-Sesión: Es el contexto de ejecución del usuario. Es el componente encargado de "gestionar" el estado del usuario
+ durante las interacciones del mismo con el sistema. Lo que hace es almacenar información útil de forma persistente.
+
+-Login: Es una acción libre que actúa como la puerta de entrada a un sistema. El primer paso consiste en la realización
+ de una autenticación, que, de ser válida y según el caso, instancia o recupera el objeto de sesión. En cualquier otro
+  caso, el objeto de sesión debe mantenerse invalidado y/o bloqueado. 
+
+-Logout: Es la acción que actúa como salida del sistema. Implica una nueva autenticación, que en caso de ser válida y
+ según el caso, cierra/persiste el objeto de sesión del usuario. 
+
+Como notará, el objeto de sesión al ser el contexto de ejecución del usuario, es de alguna manera, el objeto encargado
+ de trabajar cooperativamente con el autenticador y autorizador. Hay muchas formas de modelar esto. Lo importante, es
+  que notar que habrá tantos objetos de sesión vivos como usuarios interactúen simultáneamente.
+
+-----------
+
+Ítems a desarrollar:
+
+1. Desarrollo guiado con el docente: Asuma que en su sistema, tiene un usuario X (id) ya registrado en la base de datos
+ (con nombre y contraseña) que a su vez se encuentra asociado al grupo G (id) y este grupo tiene vinculado 
+ 3 endpoints /print, /log, /help  sobre un total de 5 endpoints. (Endpoints: /print /log  /help /sayHello /sayBye ) 
+ Se esperaría que cuando el usuario en la aplicación web cliente, pretenda ejecutar "/log" se realice de forma satisfactoria 
+ y cuando quiera ejecutar "/sayHello" se deniegue tal acción.
+
+-Backend: Desarrolle el componente "autorizador" encargado de habilitar/denegar la ejecución de una acción solicitada por
+ un usuario y defina en qué parte de la arquitectura debe operar.
+
+-Frontend: Agregue a la interfaz gráfica de pruebas dos botones para ilustrar cada caso o equivalente práctico.
+
+2. Efectúe una modificación con respecto al almacenamiento de las contraseñas de los usuarios. Actualmente son textos
+ planos visibles en la base de datos. Modifique el alta de usuario de modo tal que la contraseña se guarde de manera
+  cifrada empleando cifrado irreversible (SHA256). Adecúe la función de autenticación según corresponda. ¿password 
+  como campo resulta un nombre conveniente?
+
+3. Desarrollo guiado con el docente: Una vez que haya desarrollado las modificaciones 1 y 2. Construya el mecanismo
+ de sesión (contexto de ejecución del usuario). El mecanismo de sesión no debe persistir sesiones en bases de datos. 
+ Como simplificación, la sesión de usuario sólo vive en esta versión mientras el servidor Node.js esté ejecutándose. 
+ Aplique un diseño estructural conveniente para su resolución que permita el reúso y separación de responsabilidades 
+ de forma clara.

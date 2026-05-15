@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="es">
+	<head>
+		<meta charset="UTF-8">
+		<title>Menu Principal</title>
+	</head>
+	<body>
+	</body>
+
+	<script>
+	// Aca se agregaran los webcomponents (en lugar de un archivo separado)
+		class Menu extends HTMLElement {
+			constructor() {
+				super();
+
+    			// titulo del menu
+				this.titleElement = document.createElement('h1');
+				this.titleElement.textContent = 'Menú Principal Alta, Baja y Modificación';
+				this.appendChild(this.titleElement);
+				
+				this.subtitleElement = document.createElement('h2');
+				this.subtitleElement.textContent = 'Asignaciones de Usuarios a Grupos y Grupos a Endpoints';
+				
+				
+
+				// creo una tabla para mostrar los botones de las acciones
+				// asi quedaran ordenados porque debere hacer un abml de usuarios, grupos, endpoints y las realaciones access y members
+				this.table = document.createElement('table');
+				
+				this.row1 = document.createElement('tr');
+				this.row2 = document.createElement('tr');
+				this.row3 = document.createElement('tr');
+				this.row4 = document.createElement('tr');
+				this.row5 = document.createElement('tr');
+				this.row6 = document.createElement('tr');
+
+
+				this.table.appendChild(this.row1);
+				this.table.appendChild(this.row2);
+				this.table.appendChild(this.row3);
+				this.table.appendChild(this.row4);
+				this.table.appendChild(this.row5);
+				this.table.appendChild(this.row6);
+			
+
+			
+			// boton para insertar usuario
+				this.insertUserBtn = document.createElement('button');
+				this.insertUserBtn.textContent = 'Insertar Usuario';  
+				this.row1.appendChild(this.insertUserBtn);
+			// boton para borrar usuario
+				this.deleteUserBtn = document.createElement('button');
+				this.deleteUserBtn.textContent = 'Borrar Usuario';
+				this.row1.appendChild(this.deleteUserBtn);
+			// boton para modificar usuario
+				this.updateUserBtn = document.createElement('button');
+				this.updateUserBtn.textContent = 'Modificar Usuario';
+				this.row1.appendChild(this.updateUserBtn);
+				// boton para mostrar usuarios
+				this.showUsersBtn = document.createElement('button');
+				this.showUsersBtn.textContent = 'Mostrar Usuarios por Consola';
+				this.row1.appendChild(this.showUsersBtn);
+			
+			// boton para insertar grupo
+				this.insertGroupBtn = document.createElement('button');
+				this.insertGroupBtn.textContent = 'Insertar Grupo';  
+				this.row2.appendChild(this.insertGroupBtn);
+			// boton para borrar grupo
+				this.deleteGroupBtn = document.createElement('button');
+				this.deleteGroupBtn.textContent = 'Borrar Grupo';
+				this.row2.appendChild(this.deleteGroupBtn);
+			// boton para modificar grupo
+				this.updateGroupBtn = document.createElement('button');
+				this.updateGroupBtn.textContent = 'Modificar Grupo';
+				this.row2.appendChild(this.updateGroupBtn);
+			// boton para mostrar grupos
+				this.showGroupsBtn = document.createElement('button');
+				this.showGroupsBtn.textContent = 'Mostrar Grupos por Consola';
+				this.row2.appendChild(this.showGroupsBtn);
+
+			// boton para insertar acciones (endpoints)
+				this.insertEndpointBtn = document.createElement('button');
+				this.insertEndpointBtn.textContent = 'Insertar Endpoint';  
+				this.row3.appendChild(this.insertEndpointBtn);
+			// boton para borrar endpoint
+				this.deleteEndpointBtn = document.createElement('button');
+				this.deleteEndpointBtn.textContent = 'Borrar Endpoint';
+				this.row3.appendChild(this.deleteEndpointBtn);
+			// boton para modificar endpoint
+				this.updateEndpointBtn = document.createElement('button');
+				this.updateEndpointBtn.textContent = 'Modificar Endpoint';
+				this.row3.appendChild(this.updateEndpointBtn);
+			// boton para mostrar endpoints
+				this.showEndpointsBtn = document.createElement('button');
+				this.showEndpointsBtn.textContent = 'Mostrar Endpoints por Consola';
+				this.row3.appendChild(this.showEndpointsBtn);
+
+				this.row4.appendChild(this.subtitleElement);
+
+				this.insertUsertoGroupBtn = document.createElement('button');
+				this.insertUsertoGroupBtn.textContent = 'Asignar Usuario a Grupo';
+				this.row5.appendChild(this.insertUsertoGroupBtn);
+				this.deleteUsertoGroupBtn = document.createElement('button');
+				this.deleteUsertoGroupBtn.textContent = 'Quitar Usuario de Grupo';
+				this.row5.appendChild(this.deleteUsertoGroupBtn);
+				this.showUserGroupsBtn = document.createElement('button');
+				this.showUserGroupsBtn.textContent = 'Mostrar Grupos de Usuario por Consola';
+				this.row5.appendChild(this.showUserGroupsBtn);
+
+				this.insertGrouptoEndpointBtn = document.createElement('button');
+				this.insertGrouptoEndpointBtn.textContent = 'Asignar Grupo a Endpoint';
+				this.row6.appendChild(this.insertGrouptoEndpointBtn);
+				this.deleteGrouptoEndpointBtn = document.createElement('button');
+				this.deleteGrouptoEndpointBtn.textContent = 'Quitar Grupo de Endpoint';
+				this.row6.appendChild(this.deleteGrouptoEndpointBtn);
+				this.showGroupEndpointsBtn = document.createElement('button');
+				this.showGroupEndpointsBtn.textContent = 'Mostrar Endpoints de Grupo por Consola';
+				this.row6.appendChild(this.showGroupEndpointsBtn);
+
+
+				this.appendChild(this.table);
+
+			}  // fin del constructor
+
+
+// ----------------   USUARIOS   ----------------
+onbtninsertarUsuarioClick() 	{
+    // Aquí se llamaría a la función para insertar un nuevo usuario en la base de datos
+		let username = prompt("Ingrese el nombre de usuario:");
+		let password = prompt("Ingrese la contraseña:");
+		fetch('/register', {
+									method: 'POST',
+									headers: {'Content-Type': 'application/json'
+									},
+									body: JSON.stringify({ username, password })
+									}).then(response => {
+														if (response.ok) {
+															alert('Usuario insertado correctamente');
+														} else {
+															alert('Error al insertar el usuario');
+														}
+														}).catch(error => {
+															console.error('Error:', error);
+															alert('Error al insertar el usuario');
+														}
+									);
+	}
+
+
+async onbtndeleteUsuarioClick() 
+	{
+	// Aquí se llamaría a la función para borrar un usuario de la base de datos
+		let username = prompt("Ingrese el nombre de usuario a borrar:");
+		fetch('/delete-user', {
+								method: 'POST',
+								headers: {'Content-Type': 'application/json'
+										},
+								body: JSON.stringify({ username })
+							}).then(response => {
+												if (response.ok) {
+													alert('Usuario borrado correctamente');
+												} else {
+														alert('Error al borrar el usuario');
+														}
+												}).catch(error => {
+															console.error('Error:', error);
+															alert('Error al borrar el usuario');
+																}
+															);
+	}
+
+
+async onbtnupdateUsuarioClick() {
+	let username = prompt("Ingrese el nombre de usuario a modificar:");
+
+	// Se comprobara la existencia del usuario antes seguir pidiendo datos
+	// pensado en la experiencia del usuario sin importar
+	// que debo hacer dos llamadas al servidor
+	try {
+		const checkResp = await fetch('/check-user', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ username })
+		});
+		if (!checkResp.ok) { alert('Error comprobando usuario.'); return; }
+		const checkJson = await checkResp.json();
+		if (!checkJson.exists) { alert('Usuario no encontrado.'); return; }
+	} catch (err) {
+		console.error(err);
+		alert('Error comprobando usuario.');
+		return;
+	}
+
+	// Si el usuario existe, se piden los nuevos datos
+	
+	let newUsernameInput = prompt("Ingrese el nuevo nombre de usuario (enter para dejar igual):");
+	let newUsername;
+	if (newUsernameInput === null || newUsernameInput.trim() === "") {
+		newUsername = username;
+	} else {
+		newUsername = newUsernameInput.trim();
+	}
+	let newPassword = prompt("Ingrese la nueva contraseña:");
+	if (!newPassword) { alert('Contraseña no válida.'); return; }
+
+	let payload = { username,newUsername, newPassword };
+	
+	try {
+		const resp = await fetch('/update-user', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
+		});
+
+		if (resp.status === 200) {
+			const j = await resp.json().catch(() => ({}));
+			if (j.updated && j.updated > 0) alert('Usuario modificado correctamente.');
+			else alert('No se modificó ningún usuario (usuario no encontrado).');
+		} else if (resp.status === 404) {
+			alert('Usuario no encontrado.');
+		} else if (resp.status === 409) {
+			alert('Nombre de usuario ya existe.');
+		} else {
+			const j = await resp.json().catch(() => null);
+			alert(j?.message || 'Error al modificar el usuario.');
+		}
+	} catch (err) {
+		console.error(err);
+		alert('Error al modificar el usuario.');
+	}
+}
+	
+	onbtnlistarUsuariosClick() {
+    // Aquí se llamaría a la función para listar los usuarios desde la base de datos
+	// por ahora solo lo muestra por consola
+	fetch('/list-users')
+	}
+
+// ----------------   GRUPOS   ----------------
+
+onbtninsertarGrupoClick() 	{
+    // Aquí se llamaría a la función para insertar un nuevo grupo en la base de datos
+		let groupname = prompt("Ingrese el nombre de grupo:");
+		fetch('/register-group', {
+									method: 'POST',
+									headers: {'Content-Type': 'application/json'
+									},
+									body: JSON.stringify({ groupname })
+									}).then(response => {
+														if (response.ok) {
+															alert('Grupo insertado correctamente');
+														} else {
+															alert('Error al insertar el grupo');
+														}
+														}).catch(error => {
+															console.error('Error:', error);
+															alert('Error al insertar el grupo');
+														}
+									);
+	}
+
+
+
+	async onbtndeleteGrupoClick() 
+	{
+	// Aquí se llamaría a la función para borrar un grupo de la base de datos
+		let groupname = prompt("Ingrese el nombre de grupo a borrar:");
+
+		fetch('/delete-group', {
+								method: 'POST',
+								headers: {'Content-Type': 'application/json'
+										},
+								body: JSON.stringify({ groupname })
+							}).then(response => {
+												if (response.ok) {
+													alert('Grupo borrado correctamente');
+												} else {
+														alert('Error al borrar el grupo');
+														}
+												}).catch(error => {
+															console.error('Error:', error);
+															alert('Error al borrar el grupo');
+																}
+															);
+	}
+
+
+
+
+async onbtnupdateGrupoClick() {
+	let groupname = prompt("Ingrese el nombre de grupo a modificar:");
+	
+	// Se comprobara la existencia del grupo antes seguir pidiendo datos
+	// pensado en la experiencia del usuario sin importar
+	// que debo hacer dos llamadas al servidor
+	try {
+		const checkResp = await fetch('/check-group', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ groupname })
+		});
+		if (!checkResp.ok) { alert('Error comprobando grupo.'); return; }
+		const checkJson = await checkResp.json();
+		if (!checkJson.exists) { alert('Grupo no encontrado.'); return; }
+	} catch (err) {
+		console.error(err);
+		alert('Error comprobando grupo.');
+		return;
+	}
+
+	// Si el grupo existe, se piden los nuevos datos
+
+	let newGroupname = prompt("Ingrese el nuevo nombre de grupo:");
+	let payload = { groupname, newGroupname };
+	
+	try {
+		const resp = await fetch('/update-group', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
+		});
+
+		if (resp.status === 200) {
+			const j = await resp.json().catch(() => ({}));
+			if (j.updated && j.updated > 0) alert('Grupo modificado correctamente.');
+			else alert('No se modificó ningún grupo (grupo no encontrado).');
+		} else if (resp.status === 404) {
+			alert('Grupo no encontrado.');
+		} else if (resp.status === 409) {
+			alert('Nombre de grupo ya existe.');
+		} else {
+			const j = await resp.json().catch(() => null);
+			alert(j?.message || 'Error al modificar el grupo.');
+		}
+	} catch (err) {
+		console.error(err);
+		alert('Error al modificar el grupo.');
+	}
+}
+	
+	onbtnlistarGruposClick() {
+    // Aquí se llamaría a la función para listar los grupos desde la base de datos
+	// por ahora solo lo muestra por consola
+	fetch('/list-groups')
+	}
+
+// ----------------   ENDPOINTS   ----------------
+
+onbtninsertarEndpointClick() 	{
+    // Aquí se llamaría a la función para insertar un nuevo grupo en la base de datos
+		let endpointname = prompt("Ingrese el nombre de Endpoint:");
+		fetch('/register-endpoint', {
+									method: 'POST',
+									headers: {'Content-Type': 'application/json'
+									},
+									body: JSON.stringify({ endpointname })
+									}).then(response => {
+														if (response.ok) {
+															alert('Endpoint insertado correctamente');
+														} else {
+															alert('Error al insertar el endpoint');
+														}
+														}).catch(error => {
+															console.error('Error:', error);
+															alert('Error al insertar el endpoint');
+														}
+									);
+	}
+
+
+
+	async onbtndeleteEndpointClick() 
+	{
+	// Aquí se llamaría a la función para borrar un endpoint de la base de datos
+	let endpointname = prompt("Ingrese el nombre de endpoint a borrar:");
+
+	fetch('/delete-endpoint', {
+								method: 'POST',
+								headers: {'Content-Type': 'application/json'
+										},
+								body: JSON.stringify({ endpointname })
+							}).then(response => {
+												if (response.ok) {
+													alert('Endpoint borrado correctamente');
+												} else {
+														alert('Error al borrar el endpoint');
+														}
+												}).catch(error => {
+															console.error('Error:', error);
+															alert('Error al borrar el endpoint');
+																}
+															);
+	}
+
+
+async onbtnupdateEndpointClick() {
+	let endpointname = prompt("Ingrese el nombre de endpoint a modificar:");
+
+	// Se comprobara la existencia del usuario antes seguir pidiendo datos
+	// pensado en la experiencia del usuario sin importar
+	// que debo hacer dos llamadas al servidor
+
+	try {
+		const checkResp = await fetch('/check-endpoint', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ endpointname })
+
+		});
+		if (!checkResp.ok) { alert('Error comprobando endpoint.'); return; }
+		const checkJson = await checkResp.json();
+		if (!checkJson.exists) { alert('Endpoint no encontrado.'); return; }
+	} catch (err) {
+		console.error(err);
+		alert('Error comprobando 2 endpoint.');
+		return;
+	}
+	
+	// Si el endpoint existe, se piden los nuevos datos
+
+	let newEndpointname = prompt("Ingrese el nuevo nombre de endpoint:");
+	
+	let payload = { endpointname, newEndpointname };
+	
+	try {
+		const resp = await fetch('/update-endpoint', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
+		});
+
+		if (resp.status === 200) {
+			const j = await resp.json().catch(() => ({}));
+			if (j.updated && j.updated > 0) alert('Endpoint modificado correctamente.');
+			else alert('No se modificó ningún endpoint (endpoint no encontrado).');
+		} else if (resp.status === 404) {
+			alert('Endpoint no encontrado.');
+		} else if (resp.status === 409) {
+			alert('Nombre de endpoint ya existe.');
+		} else {
+			const j = await resp.json().catch(() => null);
+			alert(j?.message || 'Error al modificar el endpoint.');
+		}
+	} catch (err) {
+		console.error(err);
+		alert('Error al modificar el endpoint.');
+	}
+
+}
+	
+	onbtnlistarEndpointsClick() {
+    // Aquí se llamaría a la función para listar los endpoints desde la base de datos
+	// por ahora solo lo muestra por consola
+	fetch('/list-endpoints')
+	}
+
+	//--------------------   ASIGNACIONES   ----------------
+	//------------------- Usuarios a Grupos ---------------
+
+	onbtninsertarUsuarioAGrupoClick() {
+		// Implementación para insertar usuario en grupo
+		let username = prompt("Ingrese el nombre de usuario:");
+		let groupname = prompt("Ingrese el nombre del grupo:");
+		fetch('/assign-user-to-group', {
+									method: 'POST',
+									headers: {'Content-Type': 'application/json'
+									},
+									body: JSON.stringify({ username, groupname })
+									}).then(response => {
+														if (response.ok) {
+															alert('Usuario insertado correctamente');
+														} else {
+															alert('Error al insertar el usuario');
+														}
+														}).catch(error => {
+															console.error('Error:', error);
+															alert('Error al insertar el usuario');
+														}
+									);
+	}
+	
+	onbtndeleteUsuarioAGrupoClick() {
+		// Implementación para borrar usuario de grupo
+		let username = prompt("Ingrese el nombre de usuario:");
+		let groupname = prompt("Ingrese el nombre del grupo:");
+		fetch('/remove-user-from-group', {
+									method: 'POST',
+									headers: {'Content-Type': 'application/json'
+									},
+									body: JSON.stringify({ username, groupname })
+									}).then(response => {
+														if (response.ok) {
+															alert('Usuario removido correctamente');
+														} else {
+															alert('Error al remover el usuario');
+														}
+													}).catch(error => {
+														console.error('Error:', error);
+														alert('Error al remover el usuario');
+													});
+	}
+
+	onbtnlistarGruposDeUsuarioClick() {
+		// Implementación para listar grupos de un usuario
+		fetch('/list-user-groups')
+									
+	}
+
+	//------------------- Grupos a Endpoints ---------------
+
+	onbtninsertarGrupoAEndpointClick() {
+		// Implementación para asignar grupo a endpoint
+		let groupname = prompt("Ingrese el nombre del grupo:");
+		let endpointname = prompt("Ingrese el nombre del endpoint:");
+		fetch('/assign-endpoint-to-group', {
+									method: 'POST',
+									headers: {'Content-Type': 'application/json'
+									},
+									body: JSON.stringify({ groupname, endpointname })
+									}).then(response => {
+														if (response.ok) {
+															alert('Grupo asignado al endpoint correctamente');
+														} else {
+															alert('Error al asignar el grupo al endpoint');
+														}
+													}).catch(error => {
+														console.error('Error:', error);
+														alert('Error al asignar el grupo al endpoint');
+													});
+	}
+
+	onbtndeleteGrupoAEndpointClick() {
+		// Implementación para quitar grupo de endpoint
+		let groupname = prompt("Ingrese el nombre del grupo:");
+		let endpointname = prompt("Ingrese el nombre del endpoint:");
+		fetch('/remove-endpoint-from-group', {
+									method: 'POST',
+									headers: {'Content-Type': 'application/json'
+									},
+									body: JSON.stringify({ groupname, endpointname })
+									}).then(response => {
+														if (response.ok) {
+															alert('Grupo removido del endpoint correctamente');
+														} else {
+															alert('Error al remover el grupo del endpoint');
+														}
+													}).catch(error => {
+														console.error('Error:', error);
+														alert('Error al remover el grupo del endpoint');
+													});
+	}
+
+	onbtnlistarEndpointsDeGrupoClick() {
+		// Implementación para listar endpoints de un grupo
+		fetch('/list-group-endpoints')
+	}
+	
+
+connectedCallback() {
+    this.insertUserBtn.onclick = this.onbtninsertarUsuarioClick.bind(this);
+	this.deleteUserBtn.onclick = this.onbtndeleteUsuarioClick.bind(this);
+	this.updateUserBtn.onclick = this.onbtnupdateUsuarioClick.bind(this);
+    this.showUsersBtn.onclick = this.onbtnlistarUsuariosClick.bind(this);
+
+	this.insertGroupBtn.onclick = this.onbtninsertarGrupoClick.bind(this);
+	this.deleteGroupBtn.onclick = this.onbtndeleteGrupoClick.bind(this);
+	this.updateGroupBtn.onclick = this.onbtnupdateGrupoClick.bind(this);
+	this.showGroupsBtn.onclick = this.onbtnlistarGruposClick.bind(this);
+
+	
+	this.insertEndpointBtn.onclick = this.onbtninsertarEndpointClick.bind(this);
+	this.deleteEndpointBtn.onclick = this.onbtndeleteEndpointClick.bind(this);
+	this.updateEndpointBtn.onclick = this.onbtnupdateEndpointClick.bind(this);
+	this.showEndpointsBtn.onclick = this.onbtnlistarEndpointsClick.bind(this);
+
+	this.insertUsertoGroupBtn.onclick = this.onbtninsertarUsuarioAGrupoClick.bind(this);
+	this.deleteUsertoGroupBtn.onclick = this.onbtndeleteUsuarioAGrupoClick.bind(this);
+	this.showUserGroupsBtn.onclick = this.onbtnlistarGruposDeUsuarioClick.bind(this);
+
+	this.insertGrouptoEndpointBtn.onclick = this.onbtninsertarGrupoAEndpointClick.bind(this);
+	this.deleteGrouptoEndpointBtn.onclick = this.onbtndeleteGrupoAEndpointClick.bind(this);
+	this.showGroupEndpointsBtn.onclick = this.onbtnlistarEndpointsDeGrupoClick.bind(this);
+	
+	}
+
+
+disconnectedCallback() {
+    this.insertUserBtn.onclick = null;
+	this.deleteUserBtn.onclick = null;
+	this.updateUserBtn.onclick = null;
+    this.showUsersBtn.onclick = null;
+
+	this.insertGroupBtn.onclick = null;
+	this.deleteGroupBtn.onclick = null;
+	this.updateGroupBtn.onclick = null;
+	this.showGroupsBtn.onclick = null;
+
+	
+	this.insertEndpointBtn.onclick = null;
+	this.deleteEndpointBtn.onclick = null;
+	this.updateEndpointBtn.onclick = null;
+	this.showEndpointsBtn.onclick = null;
+
+	this.insertUsertoGroupBtn.onclick = null;
+	this.deleteUsertoGroupBtn.onclick = null;
+	this.showUserGroupsBtn.onclick = null;
+
+	this.insertGrouptoEndpointBtn.onclick = null;
+	this.deleteGrouptoEndpointBtn.onclick = null;
+	this.showGroupEndpointsBtn.onclick = null;
+	
+	}
+
+}  // fin de la clase menu
+
+
+customElements.define('main-menu', Menu);
+
+function main() {
+	let myMenu = new Menu;
+	document.body.appendChild(myMenu);
+}
+
+window.onload = main;
+
+</script>
+
+
+</html>
