@@ -202,11 +202,11 @@ async function login_handler(request, response)
     if ( request.method == "POST" )
     {
        let body = '';
-        request.on('data', chunk => {
+        request.on('data', function(chunk) {
             body += chunk.toString();
         });
 
-        request.on('end', async () => 
+        request.on('end', async function() 
         {
             try 
             {

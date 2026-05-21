@@ -60,7 +60,7 @@ function connect_db( path )  // se define la función connect_db que recibe como
     // se crea una nueva instancia de sqlite3.Database utilizando la ruta resuelta y se asigna a la variable db.
     // se proporciona una función de callback para manejar cualquier error que pueda ocurrir al conectar a la base de datos.
     // Si ocurre un error, se lanza una nueva excepción con un mensaje descriptivo. 
-    const db = new sqlite3.Database(dbPath, (err) => 
+    const db = new sqlite3.Database(dbPath, function(err) 
     {   if (err) 
         {
             throw new Error(`Error al conectar a la base de datos: ${err.message}`);
@@ -79,9 +79,8 @@ const db = connect_db(config.database.path);
 
 // ****************   BLOQUE DE LÓGICA DE NEGOCIO   ****************
 
-//Lógica de negocio / Modelo (Son independientes de protocolos, comunicaciones y servidor)
-//TODO: hacer un boton que chequee que el usuario existe o no
-
+// *****************   FUNCIONES DE AUTENTICACIÓN   ****************
+//TODO Hacer esta funcion siguiendo la consigna, usando autorizador, autenticador
 function login( input )
 {
 	const userdata =
@@ -121,6 +120,9 @@ async function login_handler(request, response)
     response.end(JSON.stringify(output));
 }
 
+
+// ******************** Default handler es la que muestra la vista principal *******
+
 function default_handler(request, response)
 {
 	try 
@@ -136,14 +138,36 @@ function default_handler(request, response)
     }
 }
 
-// -------------  FUNCIONES DE USUARIOS  --------------
-
-
-function insertarUsuario(db, username, password) 
+//  -----------------  Funcion auxiliar para el manejo de JSON entre cliente y servidor  -----------------
+// esta funcion es la que "arma" el paquete que se envia por JSON
+async function getRequestbody(request)  
 {
-    let sql = 'INSERT INTO `user` (username, password) VALUES (?, ?)';
-    db.run(sql, [username, password]);
+    return new Promise(function(resolve, reject)
+    {
+        let body = '';
+        request.on('data', function(chunk)
+        {
+            body += chunk.toString();
+        });
+        request.on('end', function()
+        {
+            resolve(body);
+        });
+    });
 }
+
+// ******* FUNCION AUXILIAR PARA CHEQUEAR EXISTENCIA DE USUARIOS *******
+function chequearUsuario(db, username) {
+    return new Promise(function(resolve, reject) {
+        const sql = 'SELECT COUNT(*) as cnt FROM user WHERE username = ? COLLATE NOCASE';
+        db.get(sql, [username], function(err, row) {
+            if (err) return reject(err);
+            resolve(row && row.cnt > 0);
+        });
+    });
+}
+
+// ************ FUNCIONES DE USUARIOS  --------------
 
 async function register_handler(request, response) // hay que hacer que reciba los datos desde el html y lo agrgue a la base de datos,
                                                    //  para eso hay que hacer un formulario en el html y luego parsear los datos que 
@@ -156,9 +180,25 @@ async function register_handler(request, response) // hay que hacer que reciba l
     {  
         let data = await getRequestbody(request); // el request llega como un stream, por eso hay que esperar a que llegue todo el body para 
         let obj = JSON.parse(data);               // poder parsearlo, por eso se hace una función getRequestbody que devuelve una promesa que se 
-        let username = obj.username;              // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos de username y password.     
-        let password = obj.password;
-        insertarUsuario(db, username, password);    // se llama a la funcion insertarUsuario que es la que maneja SQL para insertar en la bd
+        const username = obj.username;              // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos de username y password.     
+        const password = obj.password;
+        // chequear existencia
+        const exists = await chequearUsuario(db, username);
+        if (exists) 
+        {
+            response.writeHead(409, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ status: 'error', message: 'El usuario ya existe' }));
+            return;
+        }
+        // insertar
+        db.run('INSERT INTO `user` (username, password) VALUES (?, ?)', [username, password], function(err) {
+        if (err) 
+            {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            return response.end(JSON.stringify({ status: 'error', message: err.message }));
+            }
+        });
+
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ status: 'success', username: username }));  // se responde con un JSON indicando que el registro fue exitoso y se incluye el username registrado.
     }  
@@ -169,102 +209,51 @@ async function register_handler(request, response) // hay que hacer que reciba l
     }
 }
 
-//  -----------------  Funcion auxiliar para el manejo de JSON entre cliente y servidor  -----------------
-// esta funcion es la que "arma" el paquete que se envia por JSON
-async function getRequestbody(request)  
-{
-return new Promise((resolve, reject) =>
-{
-    let body = '';
-    request.on('data', chunk =>
-    {
-    body += chunk.toString();
-    });
-    request.on('end', () =>
-    {
-    resolve(body);
-    });
-});
-}
-
-async function eliminarUsuario(db, username) {
-        return new Promise((resolve, reject) => {
-                const sql = 'DELETE FROM user WHERE username = ? COLLATE NOCASE';
-                db.run(sql, [username], function(err) {
-                if (err) return reject(err);
-                resolve(this.changes); // 0 si no hubo filas, >0 si borró
-                });
-        });
-}
-
-
-
 
 async function delete_user_handler(request, response)
 {   
-    // Simplified responses: single reply 'se pudo borrar' or 'no se pudo borrar'
-    let status = 200;
-    let body = 'se pudo borrar';
-
-    if (request.method === 'POST') {
+    if (request.method === 'POST') 
+    {
         try {
-            const data = await getRequestbody(request);
-            const obj = JSON.parse(data);
+            let data = await getRequestbody(request);
+            let obj = JSON.parse(data);
             const username = obj.username;
 
+            //chequear existencia
             const exists = await chequearUsuario(db, username);
-            if (!exists) {
-                status = 404;
-                body = 'no se pudo borrar';
+            if (exists) {
+                db.run('DELETE FROM user WHERE username = ? COLLATE NOCASE', [username], function(err) {
+                    if (err) {
+                        console.error('delete_user_handler SQL error:', err);
+                        response.writeHead(500, { 'Content-Type': 'text/plain' });
+                        return response.end('no se pudo borrar');
+                    }
+                    if (this.changes && this.changes > 0) {
+                        response.writeHead(200, { 'Content-Type': 'application/json' });
+                        return response.end(JSON.stringify({ status: 'success', username: username }));
+                    } else {
+                        response.writeHead(404, { 'Content-Type': 'application/json' });
+                        return response.end(JSON.stringify({ status: 'error', message: 'No se pudo borrar' }));
+                    }
+                });
             } else {
-                const deleted = await eliminarUsuario(db, username);
-                if (deleted > 0) {
-                    status = 200;
-                    body = 'se pudo borrar';
-                } else {
-                    status = 404;
-                    body = 'no se pudo borrar';
-                }
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                return response.end(JSON.stringify({ status: 'error', message: 'Usuario no encontrado' }));
             }
         } catch (err) {
             console.error('delete_user_handler error:', err);
-            status = 500;
-            body = 'no se pudo borrar';
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            return response.end(JSON.stringify({ status: 'error', message: err.message }));
         }
-    } else {
-        status = 405;
-        body = 'no se pudo borrar';
     }
-
-    response.writeHead(status, { 'Content-Type': 'text/plain' });
-    response.end(body);
+    else
+    {
+        response.writeHead(405, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ status: 'error', message: 'Método no permitido' }));
+    }
 }
 
-
-
-async function modificarUsuario(db, username, newUsername, newPassword) {
-    return new Promise((resolve, reject) => {
-        const updates = [];
-        const params = [];
-        if (typeof newPassword === 'string' && newPassword.length > 0) {
-            updates.push('password = ?');
-            params.push(newPassword);
-        }
-        if (typeof newUsername === 'string' && newUsername.length > 0 && newUsername !== username) {
-            updates.push('username = ?');
-            params.push(newUsername);
-        }
-        if (updates.length === 0) return resolve(0);
-
-        const sql = `UPDATE user SET ${updates.join(', ')} WHERE username = ? COLLATE NOCASE`;
-        params.push(username);
-        db.run(sql, params, function(err) {
-            if (err) return reject(err);
-            resolve(this.changes);
-        });
-    });
-}
-
+//TODO: preguntar acerca del manejo de errores
 async function update_user_handler(request, response)
 {
     if (request.method === 'POST')
@@ -276,33 +265,51 @@ async function update_user_handler(request, response)
             let newUsername = obj.newUsername;
             let newPassword = obj.newPassword;
 
-
-            // verificar existencia antes de intentar actualizar
             const exists = await chequearUsuario(db, username);
             if (!exists) {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ status: 'error', message: 'Usuario no encontrado' }));
-                return;
+                return response.end(JSON.stringify({ status: 'error', message: 'Usuario no encontrado' }));
             }
 
-            const updated = await modificarUsuario(db, username, newUsername, newPassword);
-            if (updated > 0) {
-                response.writeHead(200, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ status: 'success', username: username, updated }));
+            // Case 1: Rename user (and maybe change password)
+            if (newUsername && newUsername !== username) {
+                const targetExists = await chequearUsuario(db, newUsername);
+                if (targetExists) {
+                    response.writeHead(409, { 'Content-Type': 'application/json' });
+                    return response.end(JSON.stringify({ status: 'error', message: 'Nombre de usuario ya existe' }));
+                }
+
+                let sql = 'UPDATE user SET username = ?' + (newPassword ? ', password = ?' : '') + ' WHERE username = ? COLLATE NOCASE';
+                let params = newPassword ? [newUsername, newPassword, username] : [newUsername, username];
+
+                db.run(sql, params, function(err) {
+                    if (err) {
+                        response.writeHead(500, { 'Content-Type': 'application/json' });
+                        return response.end(JSON.stringify({ status: 'error', message: err.message }));
+                    }
+                    response.writeHead(200, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ status: 'success', username: newUsername, updated: this.changes }));
+                });
+
+            // Case 2: Only change password
+            } else if (newPassword) {
+                db.run('UPDATE user SET password = ? WHERE username = ? COLLATE NOCASE', [newPassword, username], function(err) {
+                    if (err) {
+                        response.writeHead(500, { 'Content-Type': 'application/json' });
+                        return response.end(JSON.stringify({ status: 'error', message: err.message }));
+                    }
+                    response.writeHead(200, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ status: 'success', username: username, updated: this.changes }));
+                });
+
+            // Case 3: Nothing to do
             } else {
-                // no se realizó ningún cambio
                 response.writeHead(200, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ status: 'success', message: 'No se modificó nada', updated: 0 }));
             }
         } catch (err) {
-            const msg = err && err.message ? err.message : String(err);
-            if (msg.toLowerCase().includes('unique') || msg.toLowerCase().includes('constraint failed')) {
-                response.writeHead(409, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ status: 'error', message: 'Nombre de usuario ya existe' }));
-            } else {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ status: 'error', message: msg }));
-            }
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ status: 'error', message: err.message }));
         }
     }
     else
@@ -314,37 +321,30 @@ async function update_user_handler(request, response)
 
 
 // listar usuarios de la base de datos (solo para verificar que se haya insertado el usuario admin correctamente)
-function listarUsuarios(db)
-{   
-    db.all('SELECT * FROM user', (err, rows) => { 
-        if (err) 
-        { console.error('Error al listar usuarios:', err.message);
-            return;
-        }
-        console.log('Usuarios en la base de datos:');
-        rows.forEach((row) => {
-                            console.log(`ID: ${row.id}, Username: ${row.username}, Password: ${row.password}`);
-                            });
-                                            });
-}
 
 function list_user_handler(request, response)
 {
-    listarUsuarios(db);
+    db.all('SELECT * FROM user', function(err, rows) 
+        { 
+            if (err) 
+                { console.error('Error al listar usuarios:', err.message);
+                return;
+                }
+            console.log('Usuarios en la base de datos:');
+            rows.forEach((row) => 
+                            {
+                            console.log(`ID: ${row.id}, Username: ${row.username}, Password: ${row.password}`);
+                            });
+        });
+    
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ status: 'success', message: 'Usuarios listados en consola' }));
 }
 
-function chequearUsuario(db, username) {
-    return new Promise((resolve, reject) => {
-        const sql = 'SELECT COUNT(*) as cnt FROM user WHERE username = ? COLLATE NOCASE';
-        db.get(sql, [username], (err, row) => {
-            if (err) return reject(err);
-            resolve(row && row.cnt > 0);
-        });
-    });
-}
 
+// funcion deprecada ya que la verificacion de la existencia de usuario 
+//sera responsabilidad del servidor no del frontend
+/*
 async function check_user_handler(request, response) {
     if (request.method === 'POST') {
         try {
@@ -364,9 +364,24 @@ async function check_user_handler(request, response) {
         response.end(JSON.stringify({ status: 'error', message: 'Método no permitido' }));
     }
 }
-
+*/
 
 // ------------- FUNCIONES DE GRUPOS  --------------
+
+// *************** FUNCION AUXILIAR PARA CHEQUEAR EXISTENCIA DE GRUPOS *******
+
+function checkGroup(db, nombre) {
+    return new Promise(function(resolve, reject) {
+        const sql = 'SELECT COUNT(*) as cnt FROM `group` WHERE name = ? COLLATE NOCASE';
+        db.get(sql, [nombre], function(err, row) {
+            if (err) return reject(err);
+            resolve(row && row.cnt > 0);
+        });
+    });
+}
+
+
+
 
 function insertarGrupo(db, nombre) 
 {
@@ -376,37 +391,39 @@ function insertarGrupo(db, nombre)
     db.run(sql, [nombre]);
 }
 
-async function register_group_handler(request, response) //TODO: hay que hacer que reciba los datos desde el html y lo agrgue a la base de datos,
-                                                   //  para eso hay que hacer un formulario en el html y luego parsear los datos que 
-                                                   // llegan por query params (o por body si se hace un POST) y luego llamar a la función 
-                                                   // register con esos datos para que los inserte en la base de datos.
-                                                   // ACA hay que poner los 2 casos el de GET y el de POST (esto si se usa formato REST)
-                                                   // yo no voy a usar REST
+async function register_group_handler(request, response)
 {
-    if (request.method === 'POST')    // chequeo si el metodo es POST
+    if (request.method === 'POST')
     {  
-        let data = await getRequestbody(request); // el request llega como un stream, por eso hay que esperar a que llegue todo el body para 
-        let obj = JSON.parse(data);               // poder parsearlo, por eso se hace una función getRequestbody que devuelve una promesa que se 
-        let nombregrupo = obj.groupname;              // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos.
-        insertarGrupo(db, nombregrupo);    // se llama a la funcion insertarGrupo que inserta en la BD
+        let data = await getRequestbody(request);
+        let obj = JSON.parse(data);
+        let nombregrupo = obj.groupname;
+
+        const exists = await checkGroup(db, nombregrupo);
+        if (exists) {
+            response.writeHead(409, { 'Content-Type': 'application/json' });
+            return response.end(JSON.stringify({ status: 'error', message: 'El grupo ya existe' }));
+        }
+
+        insertarGrupo(db, nombregrupo);
         response.writeHead(200, { 'Content-Type': 'application/json' });
-        response.end(JSON.stringify({ status: 'success', nombre: nombregrupo }));  // se responde con un JSON indicando que el registro fue exitoso y se incluye el username registrado.
+        response.end(JSON.stringify({ status: 'success', nombre: nombregrupo }));
     }  
     else 
     {  
         response.writeHead(405, { 'Content-Type': 'application/json' });
-        response.end(JSON.stringify({ status: 'error', message: 'Método no permitido' })); // si el método no es POST, se responde con un error indicando que el método no está permitido.
+        response.end(JSON.stringify({ status: 'error', message: 'Método no permitido' }));
     }
 }
 
 async function eliminarGrupo(db, nombre) {
-return new Promise((resolve, reject) => {
-const sql = 'DELETE FROM `group` WHERE name = ?';
-db.run(sql, [nombre], function(err) {
-if (err) return reject(err);
-resolve(this.changes); // 0 si no hubo filas, >0 si borró
-});
-});
+    return new Promise(function(resolve, reject) {
+        const sql = 'DELETE FROM `group` WHERE name = ?';
+        db.run(sql, [nombre], function(err) {
+            if (err) return reject(err);
+            resolve(this.changes); // 0 si no hubo filas, >0 si borró
+        });
+    });
 }
 
 
@@ -449,7 +466,7 @@ async function delete_group_handler(request, response)
 
 
 async function modificarGrupo(db, nombre, newNombre, newPassword) {
-    return new Promise((resolve, reject) => {
+    return new Promise(function(resolve, reject) {
         const updates = [];
         const params = [];
         if (typeof newNombre === 'string' && newNombre.length > 0 && newNombre !== nombre) {
@@ -484,6 +501,15 @@ async function update_group_handler(request, response)
                 return;
             }
 
+            if (newNombre && newNombre !== nombre) {
+                const targetExists = await checkGroup(db, newNombre);
+                if (targetExists) {
+                    response.writeHead(409, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ status: 'error', message: 'Nombre de grupo ya existe' }));
+                    return;
+                }
+            }
+
             const updated = await modificarGrupo(db, nombre, newNombre);
             if (updated > 0) {
                 response.writeHead(200, { 'Content-Type': 'application/json' });
@@ -513,38 +539,27 @@ async function update_group_handler(request, response)
 }
 
 // listar grupos de la base de datos (solo para verificar que se haya insertado el grupo correctamente)
-function listarGrupos(db)
-{   
-    db.all('SELECT * FROM "group"', (err, rows) => { 
+function list_group_handler(request, response)
+{
+    db.all('SELECT * FROM "group"', function(err, rows) 
+        { 
         if (err) 
-        { console.error('Error al listar grupos:', err.message);
+        {   console.error('Error al listar grupos:', err.message);
             return;
         }
         console.log('Grupos en la base de datos:');
-        rows.forEach((row) => {
+        rows.forEach((row) => 
+                            {
                             console.log(`ID: ${row.id}, Nombre: ${row.name}`);
                             });
-                                            });
-}
-
-function list_group_handler(request, response)
-{
-    listarGrupos(db);
+        });
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ status: 'success', message: 'Grupos listados en consola' }));
 }
 
-
-function checkGroup(db, nombre) {
-    return new Promise((resolve, reject) => {
-        const sql = 'SELECT COUNT(*) as cnt FROM `group` WHERE name = ? COLLATE NOCASE';
-        db.get(sql, [nombre], (err, row) => {
-            if (err) return reject(err);
-            resolve(row && row.cnt > 0);
-        });
-    });
-}
-
+// funcion deprecada ya que la verificacion de la existencia de grupo 
+//sera responsabilidad del servidor no del frontend
+/*
 async function check_group_handler(request, response) {
     if (request.method === 'POST') {
         try {
@@ -563,15 +578,17 @@ async function check_group_handler(request, response) {
         response.end(JSON.stringify({ status: 'error', message: 'Método no permitido' }));
     }
 }
-
+*/
 // ------------- FUNCIONES DE ENDPOINTS  --------------
 
-function insertarEndpoint(db, nombre) 
-{
-    // group es una palabra reservada de SQLite
-    // si se usa ` ` se evitan problemas
-    let sql = 'INSERT INTO `endpoint` (path) VALUES (?)';
-    db.run(sql, [nombre]);
+function checkEndpoint(db, nombre) {
+    return new Promise(function(resolve, reject) {
+        const sql = 'SELECT COUNT(*) as cnt FROM `endpoint` WHERE path = ? COLLATE NOCASE';
+        db.get(sql, [nombre], function(err, row) {
+            if (err) return reject(err);
+            resolve(row && row.cnt > 0);
+        });
+    });
 }
 
 async function register_endpoint_handler(request, response) //TODO: hay que hacer que reciba los datos desde el html y lo agrgue a la base de datos,
@@ -586,11 +603,22 @@ async function register_endpoint_handler(request, response) //TODO: hay que hace
         let data = await getRequestbody(request); // el request llega como un stream, por eso hay que esperar a que llegue todo el body para 
         let obj = JSON.parse(data);               // poder parsearlo, por eso se hace una función getRequestbody que devuelve una promesa que se 
         let nombreendpoint = obj.endpointname;   // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos.
-        
-                
-        insertarEndpoint(db, nombreendpoint);    // se llama a la funcion insertarEndpoint que inserta en la BD
-        response.writeHead(200, { 'Content-Type': 'application/json' });
-        response.end(JSON.stringify({ status: 'success', nombre: nombreendpoint }));  // se responde con un JSON indicando que el registro fue exitoso y se incluye el username registrado.
+
+        const exists = await checkEndpoint(db, nombreendpoint);
+        if (exists) {
+            response.writeHead(409, { 'Content-Type': 'application/json' });
+            return response.end(JSON.stringify({ status: 'error', message: 'El endpoint ya existe' }));
+        }
+
+        let sql = 'INSERT INTO `endpoint` (path) VALUES (?)';
+        db.run(sql, [nombreendpoint], function(err) {
+            if (err) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                return response.end(JSON.stringify({ status: 'error', message: err.message }));
+            }
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ status: 'success', nombre: nombreendpoint }));
+        });
     }  
     else 
     {  
@@ -600,13 +628,13 @@ async function register_endpoint_handler(request, response) //TODO: hay que hace
 }
 
 async function eliminarEndpoint(db, nombre) {
-return new Promise((resolve, reject) => {
-const sql = 'DELETE FROM `endpoint` WHERE path = ?';
-db.run(sql, [nombre], function(err) {
-if (err) return reject(err);
-resolve(this.changes); // 0 si no hubo filas, >0 si borró
-});
-});
+    return new Promise(function(resolve, reject) {
+        const sql = 'DELETE FROM `endpoint` WHERE path = ?';
+        db.run(sql, [nombre], function(err) {
+            if (err) return reject(err);
+            resolve(this.changes); // 0 si no hubo filas, >0 si borró
+        });
+    });
 }
 
 
@@ -649,7 +677,7 @@ async function delete_endpoint_handler(request, response)
 
 
 async function modificarEndpoint(db, nombre, newNombre, newPassword) {
-    return new Promise((resolve, reject) => {
+    return new Promise(function(resolve, reject) {
         const updates = [];
         const params = [];
         if (typeof newNombre === 'string' && newNombre.length > 0 && newNombre !== nombre) {
@@ -684,6 +712,15 @@ async function update_endpoint_handler(request, response)
                 return;
             }
 
+            if (newNombre && newNombre !== nombre) {
+                const targetExists = await checkEndpoint(db, newNombre);
+                if (targetExists) {
+                    response.writeHead(409, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ status: 'error', message: 'Nombre de endpoint ya existe' }));
+                    return;
+                }
+            }
+
             const updated = await modificarEndpoint(db, nombre, newNombre);
             if (updated > 0) {
                 response.writeHead(200, { 'Content-Type': 'application/json' });
@@ -715,106 +752,81 @@ async function update_endpoint_handler(request, response)
 // listar endpoints de la base de datos (solo para verificar que se haya insertado el endpoint correctamente)
 function listarEndpoints(db)
 {   
-    db.all('SELECT * FROM "endpoint"', (err, rows) => { 
-        if (err) 
-        { console.error('Error al listar endpoints:', err.message);
-            return;
-        }
-        console.log('Endpoints en la base de datos:');
-        rows.forEach((row) => {
-                            console.log(`ID: ${row.id}, Nombre: ${row.path}`);
-                            });
-                                            });
-}
+    }
 
 function list_endpoint_handler(request, response)
 {
-    listarEndpoints(db);
+    db.all('SELECT * FROM "endpoint"', function(err, rows) 
+        { 
+        if (err) 
+        {   console.error('Error al listar endpoints:', err.message);
+            return;
+        }
+        console.log('Endpoints en la base de datos:');
+        rows.forEach((row) =>   {
+                                console.log(`ID: ${row.id}, Nombre: ${row.path}`);
+                                });
+        });
+
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ status: 'success', message: 'Endpoints listados en consola' }));
 }
 
 
-function checkEndpoint(db, nombre) {
-    return new Promise((resolve, reject) => {
-        const sql = 'SELECT COUNT(*) as cnt FROM `endpoint` WHERE path = ? COLLATE NOCASE';
-        db.get(sql, [nombre], (err, row) => {
-            if (err) return reject(err);
-            resolve(row && row.cnt > 0);
-        });
-    });
-}
 
-async function check_endpoint_handler(request, response) {
-    if (request.method === 'POST') {
-        try {
-            const data = await getRequestbody(request);
-            const obj = JSON.parse(data);
-            const nombre = obj.endpointname;
-
-            const exists = await checkEndpoint(db, nombre);
-            response.writeHead(200, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify({ exists }));
-        } catch (err) {
-            response.writeHead(500, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify({ status: 'error', message: err.message }));
-        }
-    } else {
-        response.writeHead(405, { 'Content-Type': 'application/json' });
-        response.end(JSON.stringify({ status: 'error', message: 'Método no permitido' }));
-    }
-}
-
+// funcion deprecada ya que la verificacion de la existencia de endpoint 
+// sera responsabilidad del servidor no del frontend
 // ------------- FUNCIONES DE ASIGNACIÓN  --------------
 // ------------- FUNCIONES DE ASIGNACIÓN USUARIOS-GRUPOS --------------
 
 // -------------  FUNCIONES AUXILIARES para usar el ID en la asignacion --------------
-function retornarIdUsuario(db, username) 
+async function retornarIdUsuario(db, username) 
 {
-    return new Promise((resolve, reject) => {
+    return new Promise(function(resolve, reject) {
         const sql = 'SELECT id FROM user WHERE username = ? COLLATE NOCASE';
-        db.get(sql, [username], (err, row) => {
+        db.get(sql, [username], function(err, row) {
             if (err) return reject(err);
             resolve(row ? row.id : null);
         });
     });
 }
 
-function retornarIdGrupo(db, groupname) 
+async function retornarIdGrupo(db, groupname) 
 {
-    return new Promise((resolve, reject) => {
+    return new Promise(function(resolve, reject) {
         const sql = 'SELECT id FROM `group` WHERE name = ? COLLATE NOCASE';
-        db.get(sql, [groupname], (err, row) => {
+        db.get(sql, [groupname], function(err, row) {
             if (err) return reject(err);
             resolve(row ? row.id : null);
         });
     });
 }
 
-function retornarIdEndpoint(db, endpointname) 
+async function retornarIdEndpoint(db, endpointname) 
 {
-    return new Promise((resolve, reject) => {
+    return new Promise(function(resolve, reject) {
         const sql = 'SELECT id FROM `endpoint` WHERE path = ? COLLATE NOCASE';
-        db.get(sql, [endpointname], (err, row) => {
+        db.get(sql, [endpointname], function(err, row) {
             if (err) return reject(err);
             resolve(row ? row.id : null);
         });
     });
 }
 
-function insertarUsuarioGrupo(db, idusuario, idgrupo) 
+async function insertarUsuarioGrupo(db, nombreusuario, nombregrupo) 
 {
-    // group es una palabra reservada de SQLite
-    // si se usa ` ` se evitan problemas
-    let sql = 'INSERT INTO `members` (id_user, id_group) VALUES (?, ?)';
-    db.run(sql, [idusuario, idgrupo]);
+    let idusuario = await retornarIdUsuario(db, nombreusuario);
+    let idgrupo = await retornarIdGrupo(db, nombregrupo);
+    let sql = 'INSERT OR IGNORE INTO `members` (id_user, id_group) VALUES (?, ?)';
+    await db.run(sql, [idusuario, idgrupo]);  
 }
+
 
 async function chequearUsuarioEnGrupo(db, idusuario, idgrupo)
 {
-    return new Promise((resolve, reject) => {
+    return new Promise(function(resolve, reject) {
         const sql = 'SELECT COUNT(*) as cnt FROM members WHERE id_user = ? AND id_group = ?';
-        db.get(sql, [idusuario, idgrupo], (err, row) => {
+        db.get(sql, [idusuario, idgrupo], function(err, row) {
             if (err) return reject(err);
             resolve(row && row.cnt > 0);
         });
@@ -831,11 +843,8 @@ async function assign_user_to_group_handler(request, response)
         let obj = JSON.parse(data);               // poder parsearlo, por eso se hace una función getRequestbody que devuelve una promesa que se 
         let nombreusuario = obj.username;   // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos.
         let nombregrupo = obj.groupname;
-                    
-        let idusuario = await retornarIdUsuario(db, nombreusuario);
-        let idgrupo = await retornarIdGrupo(db, nombregrupo);
-
-        await insertarUsuarioGrupo(db, idusuario, idgrupo);    // se llama a la funcion insertarUsuarioGrupo que inserta en la BD
+        
+        await insertarUsuarioGrupo(db, nombreusuario, nombregrupo);    // se llama a la funcion insertarUsuarioGrupo que inserta en la BD
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ status: 'success', nombre: nombreusuario }));  // se responde con un JSON indicando que el registro fue exitoso y se incluye el username registrado.
     }     
@@ -849,7 +858,7 @@ async function assign_user_to_group_handler(request, response)
 
 async function removerUsuarioDeGrupo(db, idusuario, idgrupo)
 {
-    return new Promise((resolve, reject) => {
+    return new Promise(function(resolve, reject) {
         const sql = 'DELETE FROM members WHERE id_user = ? AND id_group = ?';
         db.run(sql, [idusuario, idgrupo], function(err) {
             if (err) return reject(err);
@@ -898,13 +907,10 @@ async function remove_user_from_group_handler(request, response)
     }
 }
 
-//TODO: fuciones para obtener los nombres dando el ID? function retornarNombreUsuario(db, idusuario) y retornarNombreGrupo(db, idgrupo) para mostrar los nombres en vez de los ID al listar los miembros de un grupo. O hacer un JOIN en la consulta SQL para obtener directamente los nombres.
-
-
 
 function listarMembers(db)
 {   
-    db.all('SELECT * FROM "members"', (err, rows) => { 
+    db.all('SELECT * FROM "members"', function(err, rows) { 
         if (err) 
         { console.error('Error al listar members:', err.message);
             return;
@@ -927,22 +933,25 @@ function list_user_groups_handler(request, response)
 
 // ------------- FUNCIONES DE ASIGNACIÓN ENDPOINTS-GRUPOS --------------
 
-function insertarGrupoEndpoint(db, idgrupo, idendpoint) 
+function insertarGrupoEndpoint(db, nombregrupo, nombreendpoint) 
 {
     // group es una palabra reservada de SQLite
     // si se usa ` ` se evitan problemas
     
-            let sql = 'INSERT INTO `access` (id_group, id_endpoint) VALUES (?, ?)';
-            db.run(sql, [idgrupo, idendpoint]);
+    let idgrupo = retornarIdGrupo(db, nombregrupo);
+    let idendpoint = retornarIdEndpoint(db, nombreendpoint);
+
+    let sql = 'INSERT INTO `access` (id_group, id_endpoint) VALUES (?, ?)';
+    db.run(sql, [idgrupo, idendpoint]);
     
 }
 
-               
+
 async function chequearGrupoEnEndpoint(db, idgrupo, idendpoint)
 {
-    return new Promise((resolve, reject) => {
+    return new Promise(function(resolve, reject) {
         const sql = 'SELECT COUNT(*) as cnt FROM access WHERE id_group = ? AND id_endpoint = ?';
-        db.get(sql, [idgrupo, idendpoint], (err, row) => {
+        db.get(sql, [idgrupo, idendpoint], function(err, row) {
             if (err) return reject(err);
             resolve(row && row.cnt > 0);
         });
@@ -960,10 +969,7 @@ async function assign_endpoint_to_group_handler(request, response)
         let nombregrupo = obj.groupname;   // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos.
         let nombreendpoint = obj.endpointname;
                     
-        let idgrupo = await retornarIdGrupo(db, nombregrupo);
-        let idendpoint = await retornarIdEndpoint(db, nombreendpoint);
-
-        await insertarGrupoEndpoint(db, idgrupo, idendpoint);    // se llama a la funcion insertarGrupoEndpoint que inserta en la BD
+        await insertarGrupoEndpoint(db, nombregrupo, nombreendpoint);    // se llama a la funcion insertarGrupoEndpoint que inserta en la BD
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ status: 'success', nombre: nombregrupo }));  // se responde con un JSON indicando que el registro fue exitoso y se incluye el nombre del grupo registrado.
     }     
@@ -975,81 +981,66 @@ async function assign_endpoint_to_group_handler(request, response)
 }
 
 
-async function removerGrupoEndpoint(db, idgrupo, idendpoint)
-{
-    return new Promise((resolve, reject) => {
+async function removerGrupoEndpoint(db, groupname, endpointname)
+{   
+    let idgrupo = await retornarIdGrupo(db, groupname);
+    let idendpoint = await retornarIdEndpoint(db, endpointname);
+    
+    //TODO: como se hace esta comprobacion si el idrupo o idendpoint existe
+    if (idgrupo === null || idendpoint === null) {
+        throw new Error('Grupo o endpoint no encontrado');
+    }
+
+    return new Promise(function(resolve, reject) {
         const sql = 'DELETE FROM access WHERE id_group = ? AND id_endpoint = ?';
         db.run(sql, [idgrupo, idendpoint], function(err) {
             if (err) return reject(err);
-            resolve(this.changes); // 0 si no hubo filas, >0 si borró
+            resolve(this.changes || 0);
         });
     });
 }
 
 async function remove_endpoint_from_group_handler(request, response)
 {
-    if (request.method === 'POST')    // chequeo si el metodo es POST
-    {  
-        let data = await getRequestbody(request);    // el request llega como un stream, por eso hay que esperar a que llegue todo el body para 
-        let obj = JSON.parse(data);               // poder parsearlo, por eso se hace una función getRequestbody que devuelve una promesa que se 
-        let groupname = obj.groupname;          // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener el dato de username.     
-        let endpointname = obj.endpointname;                      
-        let idgrupo = await retornarIdGrupo(db, groupname);
-        let idendpoint = await retornarIdEndpoint(db, endpointname);
+    if (request.method === 'POST')
+    {
         try {
-            const exists = await chequearGrupoEnEndpoint(db, idgrupo, idendpoint);
-            if (!exists) {
+            let data = await getRequestbody(request);
+            let obj = JSON.parse(data);
+            let groupname = obj.groupname;
+            let endpointname = obj.endpointname;
+
+            let removed = await removerGrupoEndpoint(db, groupname, endpointname);
+            if (!removed) {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ status: 'error', message: 'Endpoint no encontrado en el grupo' }));
-                return;
+                return response.end(JSON.stringify({ status: 'error', message: 'Relación no encontrada' }));
             }
-            const deleted = await removerGrupoEndpoint(db, idgrupo, idendpoint);
-            if (deleted > 0) 
-            {
-                response.writeHead(200, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ status: 'success', username }));
-                return;
-            } else {
-                response.writeHead(404, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ status: 'error', message: 'Endpoint no encontrado en el grupo' }));
-                return;
-            }
-            } catch (err) 
-            {   // Asegurarse de que no se haya enviado ya una respuesta antes de enviar otra.
-                // solucion de la IA ya que se borraba el grupo pero daba error
-                // deberia hacer todo este sistema de devolver errores o exitos mas simple (por lo menos por ahora)
-                // al principio el sistema de respuestas lo sugirio la IA y funciono pero esta funcion falla
-                if (!response.headersSent) {
-                    response.writeHead(500, { 'Content-Type': 'application/json' });
-                    response.end(JSON.stringify({ status: 'error', message: err.message }));
-                    return;
-                }
-                /*
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ status: 'error', message: err.message }));
-                return;
-                */
-            }
-    }else
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ status: 'success', groupname: groupname, endpointname: endpointname, removed: removed }));
+        } catch (err) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ status: 'error', message: err.message }));
+        }
+    }
+    else
     {
         response.writeHead(405, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ status: 'error', message: 'Método no permitido' }));
     }
+
 }
 
-
-
-
-function listaraccess(db)
+function listarAccess(db)
 {   
-    db.all('SELECT * FROM "access"', (err, rows) => { 
+    db.all('SELECT * FROM "access"', function(err, rows) { 
         if (err) 
-        { console.error('Error al listar Access:', err.message);
+        { console.error('Error al listar access:', err.message);
             return;
         }
         console.log('Access en la base de datos:');
         rows.forEach((row) => {
-                            console.log(`Group ID: ${row.id_group}, Endpoint ID: ${row.id_endpoint}`);
+                            console.log(`User ID: ${row.id_user}, Group ID: ${row.id_group}`);
                             });
                                             });
 }
@@ -1072,7 +1063,7 @@ function list_group_endpoints_handler(request, response)
 let router = new Map();   
 router.set('/', default_handler )
 
-router.set('/check-user', check_user_handler );
+// router.set('/check-user', check_user_handler );
 router.set('/login', login_handler );
 router.set('/register', register_handler );
 router.set('/delete-user', delete_user_handler ); 
@@ -1082,7 +1073,7 @@ router.set('/update-user', update_user_handler );
 router.set('/list-users', list_user_handler );
 
 
-router.set('/check-group', check_group_handler );
+//router.set('/check-group', check_group_handler );
 router.set('/register-group', register_group_handler );
 router.set('/delete-group', delete_group_handler );
 router.set('/update-group', update_group_handler );
@@ -1090,7 +1081,7 @@ router.set('/update-group', update_group_handler );
 router.set('/list-groups', list_group_handler );
 
 
-router.set('/check-endpoint', check_endpoint_handler );
+//router.set('/check-endpoint', check_endpoint_handler );
 router.set('/register-endpoint', register_endpoint_handler );
 router.set('/delete-endpoint', delete_endpoint_handler );
 router.set('/update-endpoint', update_endpoint_handler );
@@ -1142,4 +1133,5 @@ console.log('Presiona Ctrl+C para detener el servidor.');
 // ejecutará una vez que el servidor esté listo para aceptar conexiones.
 
 let server = createServer(request_dispatcher);
+
 server.listen(config.server.port, config.server.ip, start);

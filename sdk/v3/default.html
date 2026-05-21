@@ -171,12 +171,13 @@ async onbtndeleteUsuarioClick()
 
 
 async onbtnupdateUsuarioClick() {
-	let username = prompt("Ingrese el nombre de usuario a modificar:");
 
 	// Se comprobara la existencia del usuario antes seguir pidiendo datos
 	// pensado en la experiencia del usuario sin importar
 	// que debo hacer dos llamadas al servidor
-	try {
+	
+	// el chequeo de la existencia sera responsabilidad del servidor
+	/* try {
 		const checkResp = await fetch('/check-user', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
@@ -190,11 +191,13 @@ async onbtnupdateUsuarioClick() {
 		alert('Error comprobando usuario.');
 		return;
 	}
-
-	// Si el usuario existe, se piden los nuevos datos
+	*/
+	let username = prompt("Ingrese el nombre de usuario a modificar:");
 	
 	let newUsernameInput = prompt("Ingrese el nuevo nombre de usuario (enter para dejar igual):");
 	let newUsername;
+	
+	// Si el usuario ingresa null (cancel) o solo espacios, se mantiene el mismo username
 	if (newUsernameInput === null || newUsernameInput.trim() === "") {
 		newUsername = username;
 	} else {
