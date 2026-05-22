@@ -197,7 +197,7 @@ const db = connect_db(config.database.path);
 // Manejadores
 async function login_handler(request, response)
 {
-    const url = new URL(request.url, 'http://' + config.server.ip);
+    // const url = new URL(request.url, 'http://' + config.server.ip);
     
     if ( request.method == "POST" )
     {
@@ -232,7 +232,7 @@ async function login_handler(request, response)
         response.end(JSON.stringify({ error: 'Método no permitido. Usa POST.' }));
         return;
     }
-  
+
     
 }
 

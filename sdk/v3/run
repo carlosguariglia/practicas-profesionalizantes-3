@@ -7,6 +7,7 @@ import { createRequire } from 'module';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cmd = process.argv[2];
+const nodeExec = process.env.NODE_BIN || process.execPath;
 
 async function serverIsUp(baseUrl) {
     try {
@@ -68,7 +69,7 @@ async function main() {
     if (!alreadyUp) {
         const serverScript = path.join(__dirname, 'main.mjs');
         console.log('Starting server via', serverScript);
-        serverChild = spawn(process.execPath, [serverScript], { stdio: 'inherit', env: process.env });
+        serverChild = spawn(nodeExec, [serverScript], { stdio: 'inherit', env: process.env });
         serverChild.on('error', function(err) {
             if (err && err.code === 'EADDRINUSE') {
                 console.log('Port already in use; assuming server already running.');
@@ -99,7 +100,7 @@ async function main() {
         console.log('Server already running at', BASE);
     }
 
-    const testChild = spawn(process.execPath, [script], { stdio: 'inherit', env: process.env });
+    const testChild = spawn(nodeExec, [script], { stdio: 'inherit', env: process.env });
     testChild.on('exit', function(code) {
         if (serverChild && serverChild.pid) {
             try { process.kill(serverChild.pid); } catch (e) {}

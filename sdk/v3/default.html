@@ -12,12 +12,27 @@
 		class Menu extends HTMLElement {
 			constructor() {
 				super();
+				// Boton de Login
+				this.loginBtn = document.createElement('button');
+				this.loginBtn.textContent = 'Login';
+				this.appendChild(this.loginBtn);
+				// Boton de Logout
+				this.logoutBtn = document.createElement('button');
+				this.logoutBtn.textContent = 'Logout';
+				this.appendChild(this.logoutBtn);
+				// mensaje de bienvenida al usuario logueado
+				// se mostrara oculto por defecto y solo se mostarar cuando se loguee correctamente
+				this.welcomeMessage = document.createElement('p');
+				this.welcomeMessage.textContent = 'Bienvenido';
+				this.welcomeMessage.style.display = 'none'; // oculto por defecto
+				this.appendChild(this.welcomeMessage);
+				this.currentUser = null;
+				
 
-    			// titulo del menu
+				// titulo del menu
 				this.titleElement = document.createElement('h1');
 				this.titleElement.textContent = 'Menú Principal Alta, Baja y Modificación';
-				this.appendChild(this.titleElement);
-				
+								
 				this.subtitleElement = document.createElement('h2');
 				this.subtitleElement.textContent = 'Asignaciones de Usuarios a Grupos y Grupos a Endpoints';
 				
@@ -26,6 +41,10 @@
 				// creo una tabla para mostrar los botones de las acciones
 				// asi quedaran ordenados porque debere hacer un abml de usuarios, grupos, endpoints y las realaciones access y members
 				this.table = document.createElement('table');
+				this.titleRow = document.createElement('tr');
+				this.titleCell = document.createElement('td');
+				this.titleCell.appendChild(this.titleElement);
+				this.titleRow.appendChild(this.titleCell);
 				
 				this.row1 = document.createElement('tr');
 				this.row2 = document.createElement('tr');
@@ -35,14 +54,13 @@
 				this.row6 = document.createElement('tr');
 
 
+				this.table.appendChild(this.titleRow);
 				this.table.appendChild(this.row1);
 				this.table.appendChild(this.row2);
 				this.table.appendChild(this.row3);
 				this.table.appendChild(this.row4);
 				this.table.appendChild(this.row5);
 				this.table.appendChild(this.row6);
-			
-
 			
 			// boton para insertar usuario
 				this.insertUserBtn = document.createElement('button');
@@ -119,11 +137,66 @@
 
 
 				this.appendChild(this.table);
-
+				// la tabla permanecera oculta hasta que se loguee
+				this.table.style.display = 'none';
 			}  // fin del constructor
 
 
 // ----------------   USUARIOS   ----------------
+
+onbtnLoginClick() {
+	// Aquí se llamaría a la función para loguear al usuario
+	let username = prompt("Ingrese su nombre de usuario:");
+	let password = prompt("Ingrese su contraseña:");
+	fetch('/login', {
+					method: 'POST',
+					headers: {'Content-Type': 'application/json'										},
+					body: JSON.stringify({ username, password })
+					}).then(response => {
+								if (!response.ok) {
+									alert('Login fallido');
+									this.currentUser = null;
+									return null;
+								}
+								return response.json();
+							}).then(data => {
+								if (!data) return;
+								alert('Login exitoso');
+								this.currentUser = data.username || username;
+								this.welcomeMessage.textContent = `Bienvenido, ${this.currentUser}`;
+								this.welcomeMessage.style.display = 'block'; // mostrar mensaje de bienvenida
+								this.table.style.display = 'table'; // mostrar la tabla con las acciones
+							}).catch(error => {
+												console.error('Error:', error);
+												alert('Error en el login');
+											});
+}
+
+onbtnLogoutClick() {
+	// Aquí se llamaría a la función para desloguear al usuario
+	if (!this.currentUser) {
+		alert('No hay usuario logueado');
+		return;
+	}
+	fetch('/logout', {
+					method: 'POST',
+					headers: {'Content-Type': 'application/json'											},
+					body: JSON.stringify({ username: this.currentUser })
+					}).then(response => {
+										if (response.ok) {
+											alert('Logout exitoso');
+											this.currentUser = null;
+											this.welcomeMessage.style.display = 'none'; // ocultar mensaje de bienvenida
+											this.table.style.display = 'none'; // ocultar la tabla con las acciones
+											} else {
+												alert('Logout fallido');
+												}
+											}).catch(error => {
+												console.error('Error:', error);
+												alert('Error en el logout');
+											});
+}
+
 onbtninsertarUsuarioClick() 	{
     // Aquí se llamaría a la función para insertar un nuevo usuario en la base de datos
 		let username = prompt("Ingrese el nombre de usuario:");
@@ -560,6 +633,10 @@ async onbtnupdateEndpointClick() {
 	
 
 connectedCallback() {
+
+	this.loginBtn.onclick = this.onbtnLoginClick.bind(this);
+	this.logoutBtn.onclick = this.onbtnLogoutClick.bind(this);
+
     this.insertUserBtn.onclick = this.onbtninsertarUsuarioClick.bind(this);
 	this.deleteUserBtn.onclick = this.onbtndeleteUsuarioClick.bind(this);
 	this.updateUserBtn.onclick = this.onbtnupdateUsuarioClick.bind(this);
@@ -588,6 +665,10 @@ connectedCallback() {
 
 
 disconnectedCallback() {
+
+	this.loginBtn.onclick = null;
+	this.logoutBtn.onclick = null;
+
     this.insertUserBtn.onclick = null;
 	this.deleteUserBtn.onclick = null;
 	this.updateUserBtn.onclick = null;

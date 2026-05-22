@@ -1,9 +1,8 @@
 import { createServer } from 'node:http';
 import { URL } from 'node:url';
 import { readFileSync } from 'node:fs';
-import  sqlite3  from 'sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import { resolve } from 'node:path';
-import { clearScreenDown } from 'node:readline';
 
 
 // ****************   BLOQUE DE CONFIGURACIÓN DE LA CONEXIÓN   ****************
@@ -17,6 +16,10 @@ function default_config()
             ip: '127.0.0.1',
             port: 3000,
             default_path: './index.html'
+        },
+        database:
+        {
+            path: './db.sqlite3'
         }
     };
     return config;    // se retorna el obj config
@@ -46,8 +49,6 @@ function load_config()
 let config = load_config();  // se llama a la función load_config para cargar la configuración y se asigna a la variable config
 
 
-
-
 // ****************   BLOQUE DE CONEXIÓN A LA BASE DE DATOS   ****************
 
 
@@ -57,15 +58,8 @@ function connect_db( path )  // se define la función connect_db que recibe como
     const dbPath = resolve(path);   // se resuelve la ruta del archivo de la base de datos utilizando la función resolve del módulo 
                                   // path y se asigna a la variable dbPath
 
-    // se crea una nueva instancia de sqlite3.Database utilizando la ruta resuelta y se asigna a la variable db.
-    // se proporciona una función de callback para manejar cualquier error que pueda ocurrir al conectar a la base de datos.
-    // Si ocurre un error, se lanza una nueva excepción con un mensaje descriptivo. 
-    const db = new sqlite3.Database(dbPath, function(err) 
-    {   if (err) 
-        {
-            throw new Error(`Error al conectar a la base de datos: ${err.message}`);
-        }
-    });
+    // se crea una nueva instancia de DatabaseSync utilizando la ruta resuelta.
+    const db = new DatabaseSync(dbPath);
 
     console.log(`Conexión a la base de datos ${dbPath} establecida.`);
     return db;   // se retorna la instancia de la base de datos para que pueda ser utilizada en otras partes del código
@@ -81,43 +75,188 @@ const db = connect_db(config.database.path);
 
 // *****************   FUNCIONES DE AUTENTICACIÓN   ****************
 //TODO Hacer esta funcion siguiendo la consigna, usando autorizador, autenticador
-function login( input )
+let userSessions = new Map();  //clave-valor  -> clave: id_user,  valor: sessionObj
+
+class UserSession
 {
-	const userdata =
-	{
-		username: 'admin',
-		password: '1234'
-	};
+    constructor()
+    {
+    this.status = 'disabled';
+    }
 
-	let output =
-	{
-		status: false,
-		result: null,
-		description: 'INVALID_USER_PASS'
-	};
+}
 
-	if ( input.username === userdata.username && input.password === userdata.password )
-	{
-		output.status = true;
-		output.result = input.username;
-		output.description = null;
-	}
 
-	return output;
+
+function authenticate(username, password)
+{
+    //Debería ir a la base de datos y buscar si existe (1) registro  username/password coincidente
+    //Si es verdadero entonces significa que estoy autenticado, sino no.
+
+    const sql = "SELECT count(*) as total FROM `user` WHERE username=? AND password=?";
+
+    const stmt = db.prepare(sql);
+    const row = stmt.get(username, password);
+    return row && row.total === 1;
+}
+
+function login( username, password )
+{
+    
+    let isAuthenticated = authenticate(username, password);
+
+    if ( isAuthenticated )
+    {
+        let havePreviousSession = userSessions.get(username);
+
+        if ( havePreviousSession == null )
+        {
+            //Significa que está ingresando por primera vez. Entonces, creo y persisto el objeto de sesión
+            let newSession = new UserSession();
+            newSession.status = 'enabled';
+            userSessions.set(username, newSession );
+            return newSession;
+        }
+        else
+        {
+            //Significa que ya ingresó en algún momento y tiene ya un objeto de sesión creado y guardado en el mapa.
+            let previusSession = userSessions.get(username);
+
+            if ( previusSession.status == 'disabled')
+            {
+                previusSession.status = 'enabled';
+            }
+    
+            return previusSession;
+        }
+    }
+    else
+    {
+        return null;
+    }
+
+    //El retorno de esta función está representando si se devuelve o no un objeto de sesión.
+}
+
+function logout(username)
+{
+    if (!username)
+    {
+        return { status: false, message: 'Usuario requerido' };
+    }
+
+    let currentSession = userSessions.get(username);
+    if (!currentSession)
+    {
+        return { status: false, message: 'Sesion no encontrada' };
+    }
+
+    if (currentSession.status === 'disabled')
+    {
+        return { status: false, message: 'Sesion ya cerrada' };
+    }
+
+    currentSession.status = 'disabled';
+    return { status: true };
+}
+
+function authorize( username, endpointPath )
+{
+    const sql = `
+        SELECT count(*) as total
+        FROM access a
+        JOIN members m ON a.id_group = m.id_group
+        JOIN user u ON m.id_user = u.id
+        JOIN endpoint e ON a.id_endpoint = e.id
+        WHERE u.username = ? 
+        AND e.path = ?
+    `;
+
+    const stmt = db.prepare(sql);
+    const row = stmt.get(username, endpointPath);
+    return row && row.total > 0;
+}
+
+async function logout_handler(request, response)
+{
+    if (request.method === 'POST')
+    {
+        try
+        {
+            let data = await getRequestbody(request);
+            let obj = JSON.parse(data);
+            const username = obj.username;
+            if (!username)
+            {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ status: 'error', message: 'Usuario requerido' }));
+                return;
+            }
+
+            const result = logout(username);
+            if (!result.status)
+            {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ status: 'error', message: result.message }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ status: 'success' }));
+        }
+        catch (err)
+        {
+            response.writeHead(400, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ status: 'error', message: 'Formato JSON inválido' }));
+        }
+    }
+    else
+    {
+        response.writeHead(405, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ status: 'error', message: 'Method not allowed' }));
+    }
 }
 
 
 // ****************   BLOQUE DE RUTEO Y DESPACHO   ****************
 
+
+
+
 async function login_handler(request, response)
-{
-    const url = new URL(request.url, 'http://' + config.server.ip);
-    const input = Object.fromEntries(url.searchParams);
+{   
+    if (request.method === 'POST')    // chequeo si el metodo es POST 
+    {
+        try
+        {
+            let data = await getRequestbody(request); // el request llega como un stream, por eso hay que esperar a que llegue todo el body para 
+            let obj = JSON.parse(data);               // poder parsearlo, por eso se hace una función getRequestbody que devuelve una promesa que se 
+            const username = obj.username;              // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos de username y password.     
+            const password = obj.password;
+        
+            const output = login(username, password);
 
-    const output = login(input);
-
-    response.writeHead(200, { 'Content-Type': 'application/json' });
-    response.end(JSON.stringify(output));
+            if (output == null)
+            {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ status: 'error', message: 'Usuario o contraseña inválidos' }));
+                return;
+            }
+            
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(output));
+        }
+        catch (err)
+        {
+            response.writeHead(400, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: 'Formato JSON inválido' }));
+        }
+    }
+    else
+    {
+        response.writeHead(405, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'Method not allowed' }));
+    }
 }
 
 
@@ -140,7 +279,7 @@ function default_handler(request, response)
 
 //  -----------------  Funcion auxiliar para el manejo de JSON entre cliente y servidor  -----------------
 // esta funcion es la que "arma" el paquete que se envia por JSON
-async function getRequestbody(request)  
+function getRequestbody(request)  
 {
     return new Promise(function(resolve, reject)
     {
@@ -158,13 +297,10 @@ async function getRequestbody(request)
 
 // ******* FUNCION AUXILIAR PARA CHEQUEAR EXISTENCIA DE USUARIOS *******
 function chequearUsuario(db, username) {
-    return new Promise(function(resolve, reject) {
-        const sql = 'SELECT COUNT(*) as cnt FROM user WHERE username = ? COLLATE NOCASE';
-        db.get(sql, [username], function(err, row) {
-            if (err) return reject(err);
-            resolve(row && row.cnt > 0);
-        });
-    });
+    const sql = 'SELECT COUNT(*) as cnt FROM user WHERE username = ? COLLATE NOCASE';
+    const stmt = db.prepare(sql);
+    const row = stmt.get(username);
+    return row && row.cnt > 0;
 }
 
 // ************ FUNCIONES DE USUARIOS  --------------
@@ -183,7 +319,7 @@ async function register_handler(request, response) // hay que hacer que reciba l
         const username = obj.username;              // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos de username y password.     
         const password = obj.password;
         // chequear existencia
-        const exists = await chequearUsuario(db, username);
+        const exists = chequearUsuario(db, username);
         if (exists) 
         {
             response.writeHead(409, { 'Content-Type': 'application/json' });
@@ -191,16 +327,19 @@ async function register_handler(request, response) // hay que hacer que reciba l
             return;
         }
         // insertar
-        db.run('INSERT INTO `user` (username, password) VALUES (?, ?)', [username, password], function(err) {
-        if (err) 
-            {
+        try
+        {
+            const stmt = db.prepare('INSERT INTO `user` (username, password) VALUES (?, ?)');
+            stmt.run(username, password);
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ status: 'success', username: username }));  // se responde con un JSON indicando que el registro fue exitoso y se incluye el username registrado.
+        }
+        catch (err)
+        {
             response.writeHead(500, { 'Content-Type': 'application/json' });
             return response.end(JSON.stringify({ status: 'error', message: err.message }));
-            }
-        });
-
-        response.writeHead(200, { 'Content-Type': 'application/json' });
-        response.end(JSON.stringify({ status: 'success', username: username }));  // se responde con un JSON indicando que el registro fue exitoso y se incluye el username registrado.
+        }
     }  
     else 
     {  
@@ -220,22 +359,16 @@ async function delete_user_handler(request, response)
             const username = obj.username;
 
             //chequear existencia
-            const exists = await chequearUsuario(db, username);
+            const exists = chequearUsuario(db, username);
             if (exists) {
-                db.run('DELETE FROM user WHERE username = ? COLLATE NOCASE', [username], function(err) {
-                    if (err) {
-                        console.error('delete_user_handler SQL error:', err);
-                        response.writeHead(500, { 'Content-Type': 'text/plain' });
-                        return response.end('no se pudo borrar');
-                    }
-                    if (this.changes && this.changes > 0) {
-                        response.writeHead(200, { 'Content-Type': 'application/json' });
-                        return response.end(JSON.stringify({ status: 'success', username: username }));
-                    } else {
-                        response.writeHead(404, { 'Content-Type': 'application/json' });
-                        return response.end(JSON.stringify({ status: 'error', message: 'No se pudo borrar' }));
-                    }
-                });
+                const stmt = db.prepare('DELETE FROM user WHERE username = ? COLLATE NOCASE');
+                const result = stmt.run(username);
+                if (result.changes && result.changes > 0) {
+                    response.writeHead(200, { 'Content-Type': 'application/json' });
+                    return response.end(JSON.stringify({ status: 'success', username: username }));
+                }
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                return response.end(JSON.stringify({ status: 'error', message: 'No se pudo borrar' }));
             } else {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
                 return response.end(JSON.stringify({ status: 'error', message: 'Usuario no encontrado' }));
@@ -265,7 +398,7 @@ async function update_user_handler(request, response)
             let newUsername = obj.newUsername;
             let newPassword = obj.newPassword;
 
-            const exists = await chequearUsuario(db, username);
+            const exists = chequearUsuario(db, username);
             if (!exists) {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
                 return response.end(JSON.stringify({ status: 'error', message: 'Usuario no encontrado' }));
@@ -273,7 +406,7 @@ async function update_user_handler(request, response)
 
             // Case 1: Rename user (and maybe change password)
             if (newUsername && newUsername !== username) {
-                const targetExists = await chequearUsuario(db, newUsername);
+                const targetExists = chequearUsuario(db, newUsername);
                 if (targetExists) {
                     response.writeHead(409, { 'Content-Type': 'application/json' });
                     return response.end(JSON.stringify({ status: 'error', message: 'Nombre de usuario ya existe' }));
@@ -282,25 +415,17 @@ async function update_user_handler(request, response)
                 let sql = 'UPDATE user SET username = ?' + (newPassword ? ', password = ?' : '') + ' WHERE username = ? COLLATE NOCASE';
                 let params = newPassword ? [newUsername, newPassword, username] : [newUsername, username];
 
-                db.run(sql, params, function(err) {
-                    if (err) {
-                        response.writeHead(500, { 'Content-Type': 'application/json' });
-                        return response.end(JSON.stringify({ status: 'error', message: err.message }));
-                    }
-                    response.writeHead(200, { 'Content-Type': 'application/json' });
-                    response.end(JSON.stringify({ status: 'success', username: newUsername, updated: this.changes }));
-                });
+                const stmt = db.prepare(sql);
+                const result = stmt.run(...params);
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ status: 'success', username: newUsername, updated: result.changes }));
 
             // Case 2: Only change password
             } else if (newPassword) {
-                db.run('UPDATE user SET password = ? WHERE username = ? COLLATE NOCASE', [newPassword, username], function(err) {
-                    if (err) {
-                        response.writeHead(500, { 'Content-Type': 'application/json' });
-                        return response.end(JSON.stringify({ status: 'error', message: err.message }));
-                    }
-                    response.writeHead(200, { 'Content-Type': 'application/json' });
-                    response.end(JSON.stringify({ status: 'success', username: username, updated: this.changes }));
-                });
+                const stmt = db.prepare('UPDATE user SET password = ? WHERE username = ? COLLATE NOCASE');
+                const result = stmt.run(newPassword, username);
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ status: 'success', username: username, updated: result.changes }));
 
             // Case 3: Nothing to do
             } else {
@@ -324,18 +449,13 @@ async function update_user_handler(request, response)
 
 function list_user_handler(request, response)
 {
-    db.all('SELECT * FROM user', function(err, rows) 
-        { 
-            if (err) 
-                { console.error('Error al listar usuarios:', err.message);
-                return;
-                }
-            console.log('Usuarios en la base de datos:');
-            rows.forEach((row) => 
-                            {
-                            console.log(`ID: ${row.id}, Username: ${row.username}, Password: ${row.password}`);
-                            });
-        });
+    const stmt = db.prepare('SELECT * FROM user');
+    const rows = stmt.all();
+    console.log('Usuarios en la base de datos:');
+    rows.forEach((row) => 
+                    {
+                    console.log(`ID: ${row.id}, Username: ${row.username}, Password: ${row.password}`);
+                    });
     
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ status: 'success', message: 'Usuarios listados en consola' }));
@@ -371,13 +491,10 @@ async function check_user_handler(request, response) {
 // *************** FUNCION AUXILIAR PARA CHEQUEAR EXISTENCIA DE GRUPOS *******
 
 function checkGroup(db, nombre) {
-    return new Promise(function(resolve, reject) {
-        const sql = 'SELECT COUNT(*) as cnt FROM `group` WHERE name = ? COLLATE NOCASE';
-        db.get(sql, [nombre], function(err, row) {
-            if (err) return reject(err);
-            resolve(row && row.cnt > 0);
-        });
-    });
+    const sql = 'SELECT COUNT(*) as cnt FROM `group` WHERE name = ? COLLATE NOCASE';
+    const stmt = db.prepare(sql);
+    const row = stmt.get(nombre);
+    return row && row.cnt > 0;
 }
 
 
@@ -388,7 +505,8 @@ function insertarGrupo(db, nombre)
     // group es una palabra reservada de SQLite
     // si se usa ` ` se evitan problemas
     let sql = 'INSERT INTO `group` (name) VALUES (?)';
-    db.run(sql, [nombre]);
+    const stmt = db.prepare(sql);
+    stmt.run(nombre);
 }
 
 async function register_group_handler(request, response)
@@ -399,7 +517,7 @@ async function register_group_handler(request, response)
         let obj = JSON.parse(data);
         let nombregrupo = obj.groupname;
 
-        const exists = await checkGroup(db, nombregrupo);
+        const exists = checkGroup(db, nombregrupo);
         if (exists) {
             response.writeHead(409, { 'Content-Type': 'application/json' });
             return response.end(JSON.stringify({ status: 'error', message: 'El grupo ya existe' }));
@@ -416,14 +534,11 @@ async function register_group_handler(request, response)
     }
 }
 
-async function eliminarGrupo(db, nombre) {
-    return new Promise(function(resolve, reject) {
-        const sql = 'DELETE FROM `group` WHERE name = ?';
-        db.run(sql, [nombre], function(err) {
-            if (err) return reject(err);
-            resolve(this.changes); // 0 si no hubo filas, >0 si borró
-        });
-    });
+function eliminarGrupo(db, nombre) {
+    const sql = 'DELETE FROM `group` WHERE name = ?';
+    const stmt = db.prepare(sql);
+    const result = stmt.run(nombre);
+    return result.changes; // 0 si no hubo filas, >0 si borró
 }
 
 
@@ -437,14 +552,14 @@ async function delete_group_handler(request, response)
             let nombre = (obj.groupname).toString().trim();
 
             // verificar existencia server-side antes de borrar
-            const exists = await checkGroup(db, nombre);
+            const exists = checkGroup(db, nombre);
             if (!exists) {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ status: 'error', message: 'Grupo no encontrado' }));
                 return;
             }
 
-            const deleted = await eliminarGrupo(db, nombre);
+            const deleted = eliminarGrupo(db, nombre);
             if (deleted > 0) 
             {
                 response.writeHead(200, { 'Content-Type': 'application/json' });
@@ -465,22 +580,19 @@ async function delete_group_handler(request, response)
 
 
 
-async function modificarGrupo(db, nombre, newNombre, newPassword) {
-    return new Promise(function(resolve, reject) {
-        const updates = [];
-        const params = [];
-        if (typeof newNombre === 'string' && newNombre.length > 0 && newNombre !== nombre) {
-            updates.push('name = ?');
-            params.push(newNombre);
-        }
-        if (updates.length === 0) return resolve(0);
-        const sql = `UPDATE "group" SET ${updates.join(', ')} WHERE name = ?`;
-        params.push(nombre);
-        db.run(sql, params, function(err) {
-            if (err) return reject(err);
-            resolve(this.changes);
-        });
-    });
+function modificarGrupo(db, nombre, newNombre, newPassword) {
+    const updates = [];
+    const params = [];
+    if (typeof newNombre === 'string' && newNombre.length > 0 && newNombre !== nombre) {
+        updates.push('name = ?');
+        params.push(newNombre);
+    }
+    if (updates.length === 0) return 0;
+    const sql = `UPDATE "group" SET ${updates.join(', ')} WHERE name = ?`;
+    params.push(nombre);
+    const stmt = db.prepare(sql);
+    const result = stmt.run(...params);
+    return result.changes;
 }
 
 async function update_group_handler(request, response)
@@ -494,7 +606,7 @@ async function update_group_handler(request, response)
             let newNombre = obj.newGroupname;
 
             // verificar existencia server-side antes de actualizar
-            const exists = await checkGroup(db, nombre);
+            const exists = checkGroup(db, nombre);
             if (!exists) {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ status: 'error', message: 'Grupo no encontrado' }));
@@ -502,7 +614,7 @@ async function update_group_handler(request, response)
             }
 
             if (newNombre && newNombre !== nombre) {
-                const targetExists = await checkGroup(db, newNombre);
+                const targetExists = checkGroup(db, newNombre);
                 if (targetExists) {
                     response.writeHead(409, { 'Content-Type': 'application/json' });
                     response.end(JSON.stringify({ status: 'error', message: 'Nombre de grupo ya existe' }));
@@ -510,7 +622,7 @@ async function update_group_handler(request, response)
                 }
             }
 
-            const updated = await modificarGrupo(db, nombre, newNombre);
+            const updated = modificarGrupo(db, nombre, newNombre);
             if (updated > 0) {
                 response.writeHead(200, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ status: 'success', nombre: newNombre, updated }));
@@ -541,18 +653,13 @@ async function update_group_handler(request, response)
 // listar grupos de la base de datos (solo para verificar que se haya insertado el grupo correctamente)
 function list_group_handler(request, response)
 {
-    db.all('SELECT * FROM "group"', function(err, rows) 
-        { 
-        if (err) 
-        {   console.error('Error al listar grupos:', err.message);
-            return;
-        }
-        console.log('Grupos en la base de datos:');
-        rows.forEach((row) => 
-                            {
-                            console.log(`ID: ${row.id}, Nombre: ${row.name}`);
-                            });
-        });
+    const stmt = db.prepare('SELECT * FROM "group"');
+    const rows = stmt.all();
+    console.log('Grupos en la base de datos:');
+    rows.forEach((row) => 
+                        {
+                        console.log(`ID: ${row.id}, Nombre: ${row.name}`);
+                        });
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ status: 'success', message: 'Grupos listados en consola' }));
 }
@@ -582,16 +689,13 @@ async function check_group_handler(request, response) {
 // ------------- FUNCIONES DE ENDPOINTS  --------------
 
 function checkEndpoint(db, nombre) {
-    return new Promise(function(resolve, reject) {
-        const sql = 'SELECT COUNT(*) as cnt FROM `endpoint` WHERE path = ? COLLATE NOCASE';
-        db.get(sql, [nombre], function(err, row) {
-            if (err) return reject(err);
-            resolve(row && row.cnt > 0);
-        });
-    });
+    const sql = 'SELECT COUNT(*) as cnt FROM `endpoint` WHERE path = ? COLLATE NOCASE';
+    const stmt = db.prepare(sql);
+    const row = stmt.get(nombre);
+    return row && row.cnt > 0;
 }
 
-async function register_endpoint_handler(request, response) //TODO: hay que hacer que reciba los datos desde el html y lo agrgue a la base de datos,
+async function register_endpoint_handler(request, response) 
                                                    //  para eso hay que hacer un formulario en el html y luego parsear los datos que 
                                                    // llegan por query params (o por body si se hace un POST) y luego llamar a la función 
                                                    // register con esos datos para que los inserte en la base de datos.
@@ -604,21 +708,25 @@ async function register_endpoint_handler(request, response) //TODO: hay que hace
         let obj = JSON.parse(data);               // poder parsearlo, por eso se hace una función getRequestbody que devuelve una promesa que se 
         let nombreendpoint = obj.endpointname;   // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos.
 
-        const exists = await checkEndpoint(db, nombreendpoint);
+        const exists = checkEndpoint(db, nombreendpoint);
         if (exists) {
             response.writeHead(409, { 'Content-Type': 'application/json' });
             return response.end(JSON.stringify({ status: 'error', message: 'El endpoint ya existe' }));
         }
 
-        let sql = 'INSERT INTO `endpoint` (path) VALUES (?)';
-        db.run(sql, [nombreendpoint], function(err) {
-            if (err) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                return response.end(JSON.stringify({ status: 'error', message: err.message }));
-            }
+        try
+        {
+            let sql = 'INSERT INTO `endpoint` (path) VALUES (?)';
+            const stmt = db.prepare(sql);
+            stmt.run(nombreendpoint);
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify({ status: 'success', nombre: nombreendpoint }));
-        });
+        }
+        catch (err)
+        {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            return response.end(JSON.stringify({ status: 'error', message: err.message }));
+        }
     }  
     else 
     {  
@@ -627,14 +735,11 @@ async function register_endpoint_handler(request, response) //TODO: hay que hace
     }
 }
 
-async function eliminarEndpoint(db, nombre) {
-    return new Promise(function(resolve, reject) {
-        const sql = 'DELETE FROM `endpoint` WHERE path = ?';
-        db.run(sql, [nombre], function(err) {
-            if (err) return reject(err);
-            resolve(this.changes); // 0 si no hubo filas, >0 si borró
-        });
-    });
+function eliminarEndpoint(db, nombre) {
+    const sql = 'DELETE FROM `endpoint` WHERE path = ?';
+    const stmt = db.prepare(sql);
+    const result = stmt.run(nombre);
+    return result.changes; // 0 si no hubo filas, >0 si borró
 }
 
 
@@ -648,14 +753,14 @@ async function delete_endpoint_handler(request, response)
             let nombre = obj.endpointname;
 
             // verificar existencia server-side antes de borrar
-            const exists = await checkEndpoint(db, nombre);
+            const exists = checkEndpoint(db, nombre);
             if (!exists) {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ status: 'error', message: 'Endpoint no encontrado' }));
                 return;
             }
 
-            const deleted = await eliminarEndpoint(db, nombre);
+            const deleted = eliminarEndpoint(db, nombre);
             if (deleted > 0) 
             {
                 response.writeHead(200, { 'Content-Type': 'application/json' });
@@ -676,22 +781,19 @@ async function delete_endpoint_handler(request, response)
 
 
 
-async function modificarEndpoint(db, nombre, newNombre, newPassword) {
-    return new Promise(function(resolve, reject) {
-        const updates = [];
-        const params = [];
-        if (typeof newNombre === 'string' && newNombre.length > 0 && newNombre !== nombre) {
-            updates.push('path = ?');
-            params.push(newNombre);
-        }
-        if (updates.length === 0) return resolve(0);
-        const sql = `UPDATE "endpoint" SET ${updates.join(', ')} WHERE path = ?`;
-        params.push(nombre);
-        db.run(sql, params, function(err) {
-            if (err) return reject(err);
-            resolve(this.changes);
-        });
-    });
+function modificarEndpoint(db, nombre, newNombre, newPassword) {
+    const updates = [];
+    const params = [];
+    if (typeof newNombre === 'string' && newNombre.length > 0 && newNombre !== nombre) {
+        updates.push('path = ?');
+        params.push(newNombre);
+    }
+    if (updates.length === 0) return 0;
+    const sql = `UPDATE "endpoint" SET ${updates.join(', ')} WHERE path = ?`;
+    params.push(nombre);
+    const stmt = db.prepare(sql);
+    const result = stmt.run(...params);
+    return result.changes;
 }
 
 async function update_endpoint_handler(request, response)
@@ -705,7 +807,7 @@ async function update_endpoint_handler(request, response)
             let newNombre = obj.newEndpointname;
 
             // verificar existencia server-side antes de actualizar
-            const exists = await checkEndpoint(db, nombre);
+            const exists = checkEndpoint(db, nombre);
             if (!exists) {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ status: 'error', message: 'Endpoint no encontrado' }));
@@ -713,7 +815,7 @@ async function update_endpoint_handler(request, response)
             }
 
             if (newNombre && newNombre !== nombre) {
-                const targetExists = await checkEndpoint(db, newNombre);
+                const targetExists = checkEndpoint(db, newNombre);
                 if (targetExists) {
                     response.writeHead(409, { 'Content-Type': 'application/json' });
                     response.end(JSON.stringify({ status: 'error', message: 'Nombre de endpoint ya existe' }));
@@ -721,7 +823,7 @@ async function update_endpoint_handler(request, response)
                 }
             }
 
-            const updated = await modificarEndpoint(db, nombre, newNombre);
+            const updated = modificarEndpoint(db, nombre, newNombre);
             if (updated > 0) {
                 response.writeHead(200, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ status: 'success', nombre: newNombre, updated }));
@@ -750,23 +852,15 @@ async function update_endpoint_handler(request, response)
 }
 
 // listar endpoints de la base de datos (solo para verificar que se haya insertado el endpoint correctamente)
-function listarEndpoints(db)
-{   
-    }
 
 function list_endpoint_handler(request, response)
 {
-    db.all('SELECT * FROM "endpoint"', function(err, rows) 
-        { 
-        if (err) 
-        {   console.error('Error al listar endpoints:', err.message);
-            return;
-        }
-        console.log('Endpoints en la base de datos:');
-        rows.forEach((row) =>   {
-                                console.log(`ID: ${row.id}, Nombre: ${row.path}`);
-                                });
-        });
+    const stmt = db.prepare('SELECT * FROM "endpoint"');
+    const rows = stmt.all();
+    console.log('Endpoints en la base de datos:');
+    rows.forEach((row) =>   {
+                            console.log(`ID: ${row.id}, Nombre: ${row.path}`);
+                            });
 
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ status: 'success', message: 'Endpoints listados en consola' }));
@@ -780,57 +874,46 @@ function list_endpoint_handler(request, response)
 // ------------- FUNCIONES DE ASIGNACIÓN USUARIOS-GRUPOS --------------
 
 // -------------  FUNCIONES AUXILIARES para usar el ID en la asignacion --------------
-async function retornarIdUsuario(db, username) 
+function retornarIdUsuario(db, username) 
 {
-    return new Promise(function(resolve, reject) {
-        const sql = 'SELECT id FROM user WHERE username = ? COLLATE NOCASE';
-        db.get(sql, [username], function(err, row) {
-            if (err) return reject(err);
-            resolve(row ? row.id : null);
-        });
-    });
+    const sql = 'SELECT id FROM user WHERE username = ? COLLATE NOCASE';
+    const stmt = db.prepare(sql);
+    const row = stmt.get(username);
+    return row ? row.id : null;
 }
 
-async function retornarIdGrupo(db, groupname) 
+function retornarIdGrupo(db, groupname) 
 {
-    return new Promise(function(resolve, reject) {
-        const sql = 'SELECT id FROM `group` WHERE name = ? COLLATE NOCASE';
-        db.get(sql, [groupname], function(err, row) {
-            if (err) return reject(err);
-            resolve(row ? row.id : null);
-        });
-    });
+    const sql = 'SELECT id FROM `group` WHERE name = ? COLLATE NOCASE';
+    const stmt = db.prepare(sql);
+    const row = stmt.get(groupname);
+    return row ? row.id : null;
 }
 
-async function retornarIdEndpoint(db, endpointname) 
+function retornarIdEndpoint(db, endpointname) 
 {
-    return new Promise(function(resolve, reject) {
-        const sql = 'SELECT id FROM `endpoint` WHERE path = ? COLLATE NOCASE';
-        db.get(sql, [endpointname], function(err, row) {
-            if (err) return reject(err);
-            resolve(row ? row.id : null);
-        });
-    });
+    const sql = 'SELECT id FROM `endpoint` WHERE path = ? COLLATE NOCASE';
+    const stmt = db.prepare(sql);
+    const row = stmt.get(endpointname);
+    return row ? row.id : null;
 }
 
-async function insertarUsuarioGrupo(db, nombreusuario, nombregrupo) 
+function insertarUsuarioGrupo(db, nombreusuario, nombregrupo) 
 {
-    let idusuario = await retornarIdUsuario(db, nombreusuario);
-    let idgrupo = await retornarIdGrupo(db, nombregrupo);
+    let idusuario = retornarIdUsuario(db, nombreusuario);
+    let idgrupo = retornarIdGrupo(db, nombregrupo);
     let sql = 'INSERT OR IGNORE INTO `members` (id_user, id_group) VALUES (?, ?)';
-    await db.run(sql, [idusuario, idgrupo]);  
+    const stmt = db.prepare(sql);
+    stmt.run(idusuario, idgrupo);
 }
 
 
-async function chequearUsuarioEnGrupo(db, idusuario, idgrupo)
+function chequearUsuarioEnGrupo(db, idusuario, idgrupo)
 {
-    return new Promise(function(resolve, reject) {
-        const sql = 'SELECT COUNT(*) as cnt FROM members WHERE id_user = ? AND id_group = ?';
-        db.get(sql, [idusuario, idgrupo], function(err, row) {
-            if (err) return reject(err);
-            resolve(row && row.cnt > 0);
-        });
-    });
+    const sql = 'SELECT COUNT(*) as cnt FROM members WHERE id_user = ? AND id_group = ?';
+    const stmt = db.prepare(sql);
+    const row = stmt.get(idusuario, idgrupo);
+    return row && row.cnt > 0;
 }
 
 //TODO: se deberia chequear que el usuario y el grupo existan antes de asignar
@@ -844,7 +927,7 @@ async function assign_user_to_group_handler(request, response)
         let nombreusuario = obj.username;   // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos.
         let nombregrupo = obj.groupname;
         
-        await insertarUsuarioGrupo(db, nombreusuario, nombregrupo);    // se llama a la funcion insertarUsuarioGrupo que inserta en la BD
+        insertarUsuarioGrupo(db, nombreusuario, nombregrupo);    // se llama a la funcion insertarUsuarioGrupo que inserta en la BD
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ status: 'success', nombre: nombreusuario }));  // se responde con un JSON indicando que el registro fue exitoso y se incluye el username registrado.
     }     
@@ -856,15 +939,12 @@ async function assign_user_to_group_handler(request, response)
 }
 
 
-async function removerUsuarioDeGrupo(db, idusuario, idgrupo)
+function removerUsuarioDeGrupo(db, idusuario, idgrupo)
 {
-    return new Promise(function(resolve, reject) {
-        const sql = 'DELETE FROM members WHERE id_user = ? AND id_group = ?';
-        db.run(sql, [idusuario, idgrupo], function(err) {
-            if (err) return reject(err);
-            resolve(this.changes); // 0 si no hubo filas, >0 si borró
-        });
-    });
+    const sql = 'DELETE FROM members WHERE id_user = ? AND id_group = ?';
+    const stmt = db.prepare(sql);
+    const result = stmt.run(idusuario, idgrupo);
+    return result.changes; // 0 si no hubo filas, >0 si borró
 }
 
 async function remove_user_from_group_handler(request, response)
@@ -876,16 +956,16 @@ async function remove_user_from_group_handler(request, response)
         let username = obj.username;              // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener el dato de username.     
         let groupname = obj.groupname;
         
-        let idusuario = await retornarIdUsuario(db, username);
-        let idgrupo = await retornarIdGrupo(db, groupname);
+        let idusuario = retornarIdUsuario(db, username);
+        let idgrupo = retornarIdGrupo(db, groupname);
         try {
-            const exists = await chequearUsuarioEnGrupo(db, idusuario, idgrupo);
+            const exists = chequearUsuarioEnGrupo(db, idusuario, idgrupo);
             if (!exists) {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ status: 'error', message: 'Usuario no encontrado en el grupo' }));
                 return;
             }
-            const deleted = await removerUsuarioDeGrupo(db, idusuario, idgrupo);
+            const deleted = removerUsuarioDeGrupo(db, idusuario, idgrupo);
             if (deleted > 0) 
             {
                 response.writeHead(200, { 'Content-Type': 'application/json' });
@@ -908,23 +988,14 @@ async function remove_user_from_group_handler(request, response)
 }
 
 
-function listarMembers(db)
-{   
-    db.all('SELECT * FROM "members"', function(err, rows) { 
-        if (err) 
-        { console.error('Error al listar members:', err.message);
-            return;
-        }
-        console.log('Members en la base de datos:');
-        rows.forEach((row) => {
-                            console.log(`User ID: ${row.id_user}, Group ID: ${row.id_group}`);
-                            });
-                                            });
-}
-
 function list_user_groups_handler(request, response)
 {
-    listarMembers(db);
+    const stmt = db.prepare('SELECT * FROM "members"');
+    const rows = stmt.all();
+    console.log('Members en la base de datos:');
+    rows.forEach((row) => {
+                        console.log(`User ID: ${row.id_user}, Group ID: ${row.id_group}`);
+                        });
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ status: 'success', message: 'Members listados en consola' }));
 }
@@ -942,20 +1013,18 @@ function insertarGrupoEndpoint(db, nombregrupo, nombreendpoint)
     let idendpoint = retornarIdEndpoint(db, nombreendpoint);
 
     let sql = 'INSERT INTO `access` (id_group, id_endpoint) VALUES (?, ?)';
-    db.run(sql, [idgrupo, idendpoint]);
-    
+    const stmt = db.prepare(sql);
+    const result = stmt.run(idgrupo, idendpoint);
+    return result.changes || 0;
 }
 
 
-async function chequearGrupoEnEndpoint(db, idgrupo, idendpoint)
+function chequearGrupoEnEndpoint(db, idgrupo, idendpoint)
 {
-    return new Promise(function(resolve, reject) {
-        const sql = 'SELECT COUNT(*) as cnt FROM access WHERE id_group = ? AND id_endpoint = ?';
-        db.get(sql, [idgrupo, idendpoint], function(err, row) {
-            if (err) return reject(err);
-            resolve(row && row.cnt > 0);
-        });
-    });
+    const sql = 'SELECT COUNT(*) as cnt FROM access WHERE id_group = ? AND id_endpoint = ?';
+    const stmt = db.prepare(sql);
+    const row = stmt.get(idgrupo, idendpoint);
+    return row && row.cnt > 0;
 }
 
 //TODO: se deberia chequear que el usuario y el grupo existan antes de asignar
@@ -969,7 +1038,15 @@ async function assign_endpoint_to_group_handler(request, response)
         let nombregrupo = obj.groupname;   // resuelve cuando llega todo el body, y luego se parsea el body como JSON para obtener los datos.
         let nombreendpoint = obj.endpointname;
                     
-        await insertarGrupoEndpoint(db, nombregrupo, nombreendpoint);    // se llama a la funcion insertarGrupoEndpoint que inserta en la BD
+        try
+        {
+            insertarGrupoEndpoint(db, nombregrupo, nombreendpoint);    // se llama a la funcion insertarGrupoEndpoint que inserta en la BD
+        }
+        catch (err)
+        {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            return response.end(JSON.stringify({ status: 'error', message: err.message }));
+        }
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ status: 'success', nombre: nombregrupo }));  // se responde con un JSON indicando que el registro fue exitoso y se incluye el nombre del grupo registrado.
     }     
@@ -981,23 +1058,20 @@ async function assign_endpoint_to_group_handler(request, response)
 }
 
 
-async function removerGrupoEndpoint(db, groupname, endpointname)
+function removerGrupoEndpoint(db, groupname, endpointname)
 {   
-    let idgrupo = await retornarIdGrupo(db, groupname);
-    let idendpoint = await retornarIdEndpoint(db, endpointname);
+    let idgrupo = retornarIdGrupo(db, groupname);
+    let idendpoint = retornarIdEndpoint(db, endpointname);
     
     //TODO: como se hace esta comprobacion si el idrupo o idendpoint existe
     if (idgrupo === null || idendpoint === null) {
         throw new Error('Grupo o endpoint no encontrado');
     }
 
-    return new Promise(function(resolve, reject) {
-        const sql = 'DELETE FROM access WHERE id_group = ? AND id_endpoint = ?';
-        db.run(sql, [idgrupo, idendpoint], function(err) {
-            if (err) return reject(err);
-            resolve(this.changes || 0);
-        });
-    });
+    const sql = 'DELETE FROM access WHERE id_group = ? AND id_endpoint = ?';
+    const stmt = db.prepare(sql);
+    const result = stmt.run(idgrupo, idendpoint);
+    return result.changes || 0;
 }
 
 async function remove_endpoint_from_group_handler(request, response)
@@ -1010,7 +1084,7 @@ async function remove_endpoint_from_group_handler(request, response)
             let groupname = obj.groupname;
             let endpointname = obj.endpointname;
 
-            let removed = await removerGrupoEndpoint(db, groupname, endpointname);
+            let removed = removerGrupoEndpoint(db, groupname, endpointname);
             if (!removed) {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
                 return response.end(JSON.stringify({ status: 'error', message: 'Relación no encontrada' }));
@@ -1031,23 +1105,14 @@ async function remove_endpoint_from_group_handler(request, response)
 
 }
 
-function listarAccess(db)
-{   
-    db.all('SELECT * FROM "access"', function(err, rows) { 
-        if (err) 
-        { console.error('Error al listar access:', err.message);
-            return;
-        }
-        console.log('Access en la base de datos:');
-        rows.forEach((row) => {
-                            console.log(`User ID: ${row.id_user}, Group ID: ${row.id_group}`);
-                            });
-                                            });
-}
-
 function list_group_endpoints_handler(request, response)
 {
-    listaraccess(db);
+    const stmt = db.prepare('SELECT * FROM "access"');
+    const rows = stmt.all();
+    console.log('Access en la base de datos:');
+    rows.forEach((row) => {
+                        console.log(`Group ID: ${row.id_group}, Endpoint ID: ${row.id_endpoint}`);
+                        });
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ status: 'success', message: 'Access listados en consola' }));
 }
@@ -1065,6 +1130,7 @@ router.set('/', default_handler )
 
 // router.set('/check-user', check_user_handler );
 router.set('/login', login_handler );
+router.set('/logout', logout_handler );
 router.set('/register', register_handler );
 router.set('/delete-user', delete_user_handler ); 
 router.set('/update-user', update_user_handler ); 
@@ -1116,6 +1182,9 @@ async function request_dispatcher(request, response)
         response.end('Método no encontrado');
     }
 }
+
+
+
 
 
 // ****************   BLOQUE DE INICIALIZACIÓN DEL SERVIDOR   ****************
