@@ -23,7 +23,7 @@
 				// mensaje de bienvenida al usuario logueado
 				// se mostrara oculto por defecto y solo se mostarar cuando se loguee correctamente
 				this.welcomeMessage = document.createElement('p');
-				this.welcomeMessage.textContent = 'Bienvenido';
+				this.welcomeMessage.textContent = 'Bienvenido/a';
 				this.welcomeMessage.style.display = 'none'; // oculto por defecto
 				this.appendChild(this.welcomeMessage);
 				this.currentUser = null;
@@ -32,7 +32,7 @@
 				// titulo del menu
 				this.titleElement = document.createElement('h1');
 				this.titleElement.textContent = 'Menú Principal Alta, Baja y Modificación';
-								
+						
 				this.subtitleElement = document.createElement('h2');
 				this.subtitleElement.textContent = 'Asignaciones de Usuarios a Grupos y Grupos a Endpoints';
 				
@@ -52,6 +52,7 @@
 				this.row4 = document.createElement('tr');
 				this.row5 = document.createElement('tr');
 				this.row6 = document.createElement('tr');
+				this.row7 = document.createElement('tr');
 
 
 				this.table.appendChild(this.titleRow);
@@ -61,7 +62,8 @@
 				this.table.appendChild(this.row4);
 				this.table.appendChild(this.row5);
 				this.table.appendChild(this.row6);
-			
+				this.table.appendChild(this.row7);
+				
 			// boton para insertar usuario
 				this.insertUserBtn = document.createElement('button');
 				this.insertUserBtn.textContent = 'Insertar Usuario';  
@@ -135,501 +137,548 @@
 				this.showGroupEndpointsBtn.textContent = 'Mostrar Endpoints de Grupo por Consola';
 				this.row6.appendChild(this.showGroupEndpointsBtn);
 
+				this.btnLOG = document.createElement('button');
+				this.btnLOG.textContent = 'Prueba ir a \log';
+				this.btnSayHello = document.createElement('button');
+				this.btnSayHello.textContent = 'Prueba ir a \sayHello';
+				this.row7.appendChild(this.btnLOG);
+				this.row7.appendChild(this.btnSayHello);
 
 				this.appendChild(this.table);
 				// la tabla permanecera oculta hasta que se loguee
 				this.table.style.display = 'none';
-			}  // fin del constructor
+			}
+
+
+// ----------------  Demo de funciones /log y /sayHello  ----------------
+
+async onbtnLogClick() {
+    const username = this.currentUser;
+    const endpoint = 'log';
+    try {
+        const response = await fetch('/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, endpoint })
+        });
+        if (response.ok) {
+            alert('Usuario Autorizado');
+        } else {
+            alert('Usuario No Autorizado');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al enviar el mensaje de log');
+    }
+}
+
+async onbtnSayHelloClick() {
+    const username = this.currentUser;
+    try {
+        const response = await fetch('/sayHello', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+        });
+        if (response.ok) {
+            alert('Mirar Consola');
+        } else {
+            alert('Mirar Consola');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al enviar el mensaje de log');
+    }
+}
 
 
 // ----------------   USUARIOS   ----------------
 
-onbtnLoginClick() {
-	// Aquí se llamaría a la función para loguear al usuario
-	let username = prompt("Ingrese su nombre de usuario:");
-	let password = prompt("Ingrese su contraseña:");
-	fetch('/login', {
-					method: 'POST',
-					headers: {'Content-Type': 'application/json'										},
-					body: JSON.stringify({ username, password })
-					}).then(response => {
-								if (!response.ok) {
-									alert('Login fallido');
-									this.currentUser = null;
-									return null;
-								}
-								return response.json();
-							}).then(data => {
-								if (!data) return;
-								alert('Login exitoso');
-								this.currentUser = data.username || username;
-								this.welcomeMessage.textContent = `Bienvenido, ${this.currentUser}`;
-								this.welcomeMessage.style.display = 'block'; // mostrar mensaje de bienvenida
-								this.table.style.display = 'table'; // mostrar la tabla con las acciones
-							}).catch(error => {
-												console.error('Error:', error);
-												alert('Error en el login');
-											});
+async onbtnLoginClick() {
+    // Aquí se llamaría a la función para loguear al usuario
+    const username = prompt("Ingrese su nombre de usuario:");
+    const password = prompt("Ingrese su contraseña:");
+    try {
+        const response = await fetch('/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        if (!response.ok) {
+            alert('Login fallido');
+            this.currentUser = null;
+            return null;
+        }
+        const data = await response.json().catch(() => null);
+        if (!data) return;
+        alert('Login exitoso');
+        this.currentUser = data.username || username;
+        this.welcomeMessage.textContent = `Bienvenido/a, ${this.currentUser}`;
+        this.welcomeMessage.style.display = 'block'; // mostrar mensaje de bienvenida
+        this.table.style.display = 'table'; // mostrar la tabla con las acciones
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error en el login');
+    }
 }
 
-onbtnLogoutClick() {
-	// Aquí se llamaría a la función para desloguear al usuario
-	if (!this.currentUser) {
-		alert('No hay usuario logueado');
-		return;
-	}
-	fetch('/logout', {
-					method: 'POST',
-					headers: {'Content-Type': 'application/json'											},
-					body: JSON.stringify({ username: this.currentUser })
-					}).then(response => {
-										if (response.ok) {
-											alert('Logout exitoso');
-											this.currentUser = null;
-											this.welcomeMessage.style.display = 'none'; // ocultar mensaje de bienvenida
-											this.table.style.display = 'none'; // ocultar la tabla con las acciones
-											} else {
-												alert('Logout fallido');
-												}
-											}).catch(error => {
-												console.error('Error:', error);
-												alert('Error en el logout');
-											});
+async onbtnLogoutClick() {
+    // Aquí se llamaría a la función para desloguear al usuario
+    if (!this.currentUser) {
+        alert('No hay usuario logueado');
+        return;
+    }
+    try {
+        const response = await fetch('/logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: this.currentUser })
+        });
+        if (response.ok) {
+            alert('Logout exitoso');
+            this.currentUser = null;
+            this.welcomeMessage.style.display = 'none'; // ocultar mensaje de bienvenida
+            this.table.style.display = 'none'; // ocultar la tabla con las acciones
+        } else {
+            alert('Logout fallido');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error en el logout');
+    }
 }
 
-onbtninsertarUsuarioClick() 	{
+async onbtninsertarUsuarioClick() {
     // Aquí se llamaría a la función para insertar un nuevo usuario en la base de datos
-		let username = prompt("Ingrese el nombre de usuario:");
-		let password = prompt("Ingrese la contraseña:");
-		fetch('/register', {
-									method: 'POST',
-									headers: {'Content-Type': 'application/json'
-									},
-									body: JSON.stringify({ username, password })
-									}).then(response => {
-														if (response.ok) {
-															alert('Usuario insertado correctamente');
-														} else {
-															alert('Error al insertar el usuario');
-														}
-														}).catch(error => {
-															console.error('Error:', error);
-															alert('Error al insertar el usuario');
-														}
-									);
-	}
+    const username = prompt("Ingrese el nombre de usuario:");
+    const password = prompt("Ingrese la contraseña:");
+    try {
+        const response = await fetch('/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        if (response.ok) {
+            alert('Usuario insertado correctamente');
+        } else {
+            alert('Error al insertar el usuario');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al insertar el usuario');
+    }
+}
 
-
-async onbtndeleteUsuarioClick() 
-	{
-	// Aquí se llamaría a la función para borrar un usuario de la base de datos
-		let username = prompt("Ingrese el nombre de usuario a borrar:");
-		fetch('/delete-user', {
-								method: 'POST',
-								headers: {'Content-Type': 'application/json'
-										},
-								body: JSON.stringify({ username })
-							}).then(response => {
-												if (response.ok) {
-													alert('Usuario borrado correctamente');
-												} else {
-														alert('Error al borrar el usuario');
-														}
-												}).catch(error => {
-															console.error('Error:', error);
-															alert('Error al borrar el usuario');
-																}
-															);
-	}
-
+async onbtndeleteUsuarioClick() {
+    // Aquí se llamaría a la función para borrar un usuario de la base de datos
+    const username = prompt("Ingrese el nombre de usuario a borrar:");
+    try {
+        const response = await fetch('/delete-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+        });
+        if (response.ok) {
+            alert('Usuario borrado correctamente');
+        } else {
+            alert('Error al borrar el usuario');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al borrar el usuario');
+    }
+}
 
 async onbtnupdateUsuarioClick() {
 
-	// Se comprobara la existencia del usuario antes seguir pidiendo datos
-	// pensado en la experiencia del usuario sin importar
-	// que debo hacer dos llamadas al servidor
-	
-	// el chequeo de la existencia sera responsabilidad del servidor
-	/* try {
-		const checkResp = await fetch('/check-user', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ username })
-		});
-		if (!checkResp.ok) { alert('Error comprobando usuario.'); return; }
-		const checkJson = await checkResp.json();
-		if (!checkJson.exists) { alert('Usuario no encontrado.'); return; }
-	} catch (err) {
-		console.error(err);
-		alert('Error comprobando usuario.');
-		return;
-	}
-	*/
-	let username = prompt("Ingrese el nombre de usuario a modificar:");
-	
-	let newUsernameInput = prompt("Ingrese el nuevo nombre de usuario (enter para dejar igual):");
-	let newUsername;
-	
-	// Si el usuario ingresa null (cancel) o solo espacios, se mantiene el mismo username
-	if (newUsernameInput === null || newUsernameInput.trim() === "") {
-		newUsername = username;
-	} else {
-		newUsername = newUsernameInput.trim();
-	}
-	let newPassword = prompt("Ingrese la nueva contraseña:");
-	if (!newPassword) { alert('Contraseña no válida.'); return; }
+    // Se comprobara la existencia del usuario antes seguir pidiendo datos
+    // pensado en la experiencia del usuario sin importar
+    // que debo hacer dos llamadas al servidor
+    
+    // el chequeo de la existencia sera responsabilidad del servidor
+    /* try {
+        const checkResp = await fetch('/check-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+        });
+        if (!checkResp.ok) { alert('Error comprobando usuario.'); return; }
+        const checkJson = await checkResp.json();
+        if (!checkJson.exists) { alert('Usuario no encontrado.'); return; }
+    } catch (err) {
+        console.error(err);
+        alert('Error comprobando usuario.');
+        return;
+    }
+    */
+    let username = prompt("Ingrese el nombre de usuario a modificar:");
+    
+    let newUsernameInput = prompt("Ingrese el nuevo nombre de usuario (enter para dejar igual):");
+    let newUsername;
+    
+    // Si el usuario ingresa null (cancel) o solo espacios, se mantiene el mismo username
+    if (newUsernameInput === null || newUsernameInput.trim() === "") {
+        newUsername = username;
+    } else {
+        newUsername = newUsernameInput.trim();
+    }
+    let newPassword = prompt("Ingrese la nueva contraseña:");
+    if (!newPassword) { alert('Contraseña no válida.'); return; }
 
-	let payload = { username,newUsername, newPassword };
-	
-	try {
-		const resp = await fetch('/update-user', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(payload)
-		});
+    let payload = { username,newUsername, newPassword };
+    
+    try {
+        const resp = await fetch('/update-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
 
-		if (resp.status === 200) {
-			const j = await resp.json().catch(() => ({}));
-			if (j.updated && j.updated > 0) alert('Usuario modificado correctamente.');
-			else alert('No se modificó ningún usuario (usuario no encontrado).');
-		} else if (resp.status === 404) {
-			alert('Usuario no encontrado.');
-		} else if (resp.status === 409) {
-			alert('Nombre de usuario ya existe.');
-		} else {
-			const j = await resp.json().catch(() => null);
-			alert(j?.message || 'Error al modificar el usuario.');
-		}
-	} catch (err) {
-		console.error(err);
-		alert('Error al modificar el usuario.');
-	}
+        if (resp.status === 200) {
+            const j = await resp.json().catch(() => ({}));
+            if (j.updated && j.updated > 0) alert('Usuario modificado correctamente.');
+            else alert('No se modificó ningún usuario (usuario no encontrado).');
+        } else if (resp.status === 404) {
+            alert('Usuario no encontrado.');
+        } else if (resp.status === 409) {
+            alert('Nombre de usuario ya existe.');
+        } else {
+            const j = await resp.json().catch(() => null);
+            alert(j?.message || 'Error al modificar el usuario.');
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Error al modificar el usuario.');
+    }
 }
-	
-	onbtnlistarUsuariosClick() {
+
+async onbtnlistarUsuariosClick() {
     // Aquí se llamaría a la función para listar los usuarios desde la base de datos
-	// por ahora solo lo muestra por consola
-	fetch('/list-users')
-	}
+    // por ahora solo lo muestra por consola
+    try {
+        await fetch('/list-users');
+    } catch (error) {
+        console.error('Error al listar usuarios:', error);
+    }
+}
 
 // ----------------   GRUPOS   ----------------
 
-onbtninsertarGrupoClick() 	{
+async onbtninsertarGrupoClick() {
     // Aquí se llamaría a la función para insertar un nuevo grupo en la base de datos
-		let groupname = prompt("Ingrese el nombre de grupo:");
-		fetch('/register-group', {
-									method: 'POST',
-									headers: {'Content-Type': 'application/json'
-									},
-									body: JSON.stringify({ groupname })
-									}).then(response => {
-														if (response.ok) {
-															alert('Grupo insertado correctamente');
-														} else {
-															alert('Error al insertar el grupo');
-														}
-														}).catch(error => {
-															console.error('Error:', error);
-															alert('Error al insertar el grupo');
-														}
-									);
-	}
+    const groupname = prompt("Ingrese el nombre de grupo:");
+    try {
+        const response = await fetch('/register-group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ groupname })
+        });
+        if (response.ok) {
+            alert('Grupo insertado correctamente');
+        } else {
+            alert('Error al insertar el grupo');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al insertar el grupo');
+    }
+}
 
-
-
-	async onbtndeleteGrupoClick() 
-	{
-	// Aquí se llamaría a la función para borrar un grupo de la base de datos
-		let groupname = prompt("Ingrese el nombre de grupo a borrar:");
-
-		fetch('/delete-group', {
-								method: 'POST',
-								headers: {'Content-Type': 'application/json'
-										},
-								body: JSON.stringify({ groupname })
-							}).then(response => {
-												if (response.ok) {
-													alert('Grupo borrado correctamente');
-												} else {
-														alert('Error al borrar el grupo');
-														}
-												}).catch(error => {
-															console.error('Error:', error);
-															alert('Error al borrar el grupo');
-																}
-															);
-	}
-
-
-
+async onbtndeleteGrupoClick() {
+    // Aquí se llamaría a la función para borrar un grupo de la base de datos
+    const groupname = prompt("Ingrese el nombre de grupo a borrar:");
+    try {
+        const response = await fetch('/delete-group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ groupname })
+        });
+        if (response.ok) {
+            alert('Grupo borrado correctamente');
+        } else {
+            alert('Error al borrar el grupo');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al borrar el grupo');
+    }
+}
 
 async onbtnupdateGrupoClick() {
-	let groupname = prompt("Ingrese el nombre de grupo a modificar:");
-	
-	// Se comprobara la existencia del grupo antes seguir pidiendo datos
-	// pensado en la experiencia del usuario sin importar
-	// que debo hacer dos llamadas al servidor
-	try {
-		const checkResp = await fetch('/check-group', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ groupname })
-		});
-		if (!checkResp.ok) { alert('Error comprobando grupo.'); return; }
-		const checkJson = await checkResp.json();
-		if (!checkJson.exists) { alert('Grupo no encontrado.'); return; }
-	} catch (err) {
-		console.error(err);
-		alert('Error comprobando grupo.');
-		return;
-	}
+    let groupname = prompt("Ingrese el nombre de grupo a modificar:");
+    
+    // Se comprobara la existencia del grupo antes seguir pidiendo datos
+    // pensado en la experiencia del usuario sin importar
+    // que debo hacer dos llamadas al servidor
+    try {
+        const checkResp = await fetch('/check-group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ groupname })
+        });
+        if (!checkResp.ok) { alert('Error comprobando grupo.'); return; }
+        const checkJson = await checkResp.json();
+        if (!checkJson.exists) { alert('Grupo no encontrado.'); return; }
+    } catch (err) {
+        console.error(err);
+        alert('Error comprobando grupo.');
+        return;
+    }
 
-	// Si el grupo existe, se piden los nuevos datos
+    // Si el grupo existe, se piden los nuevos datos
 
-	let newGroupname = prompt("Ingrese el nuevo nombre de grupo:");
-	let payload = { groupname, newGroupname };
-	
-	try {
-		const resp = await fetch('/update-group', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(payload)
-		});
+    let newGroupname = prompt("Ingrese el nuevo nombre de grupo:");
+    let payload = { groupname, newGroupname };
+    
+    try {
+        const resp = await fetch('/update-group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
 
-		if (resp.status === 200) {
-			const j = await resp.json().catch(() => ({}));
-			if (j.updated && j.updated > 0) alert('Grupo modificado correctamente.');
-			else alert('No se modificó ningún grupo (grupo no encontrado).');
-		} else if (resp.status === 404) {
-			alert('Grupo no encontrado.');
-		} else if (resp.status === 409) {
-			alert('Nombre de grupo ya existe.');
-		} else {
-			const j = await resp.json().catch(() => null);
-			alert(j?.message || 'Error al modificar el grupo.');
-		}
-	} catch (err) {
-		console.error(err);
-		alert('Error al modificar el grupo.');
-	}
+        if (resp.status === 200) {
+            const j = await resp.json().catch(() => ({}));
+            if (j.updated && j.updated > 0) alert('Grupo modificado correctamente.');
+            else alert('No se modificó ningún grupo (grupo no encontrado).');
+        } else if (resp.status === 404) {
+            alert('Grupo no encontrado.');
+        } else if (resp.status === 409) {
+            alert('Nombre de grupo ya existe.');
+        } else {
+            const j = await resp.json().catch(() => null);
+            alert(j?.message || 'Error al modificar el grupo.');
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Error al modificar el grupo.');
+    }
 }
-	
-	onbtnlistarGruposClick() {
+
+async onbtnlistarGruposClick() {
     // Aquí se llamaría a la función para listar los grupos desde la base de datos
-	// por ahora solo lo muestra por consola
-	fetch('/list-groups')
-	}
+    // por ahora solo lo muestra por consola
+    try {
+        await fetch('/list-groups');
+    } catch (error) {
+        console.error('Error al listar grupos:', error);
+    }
+}
 
 // ----------------   ENDPOINTS   ----------------
 
-onbtninsertarEndpointClick() 	{
-    // Aquí se llamaría a la función para insertar un nuevo grupo en la base de datos
-		let endpointname = prompt("Ingrese el nombre de Endpoint:");
-		fetch('/register-endpoint', {
-									method: 'POST',
-									headers: {'Content-Type': 'application/json'
-									},
-									body: JSON.stringify({ endpointname })
-									}).then(response => {
-														if (response.ok) {
-															alert('Endpoint insertado correctamente');
-														} else {
-															alert('Error al insertar el endpoint');
-														}
-														}).catch(error => {
-															console.error('Error:', error);
-															alert('Error al insertar el endpoint');
-														}
-									);
-	}
+async onbtninsertarEndpointClick() {
+    // Aquí se llamaría a la función para insertar un nuevo endpoint en la base de datos
+    const endpointname = prompt("Ingrese el nombre de Endpoint:");
+    try {
+        const response = await fetch('/register-endpoint', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpointname })
+        });
+        if (response.ok) {
+            alert('Endpoint insertado correctamente');
+        } else {
+            alert('Error al insertar el endpoint');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al insertar el endpoint');
+    }
+}
 
-
-
-	async onbtndeleteEndpointClick() 
-	{
-	// Aquí se llamaría a la función para borrar un endpoint de la base de datos
-	let endpointname = prompt("Ingrese el nombre de endpoint a borrar:");
-
-	fetch('/delete-endpoint', {
-								method: 'POST',
-								headers: {'Content-Type': 'application/json'
-										},
-								body: JSON.stringify({ endpointname })
-							}).then(response => {
-												if (response.ok) {
-													alert('Endpoint borrado correctamente');
-												} else {
-														alert('Error al borrar el endpoint');
-														}
-												}).catch(error => {
-															console.error('Error:', error);
-															alert('Error al borrar el endpoint');
-																}
-															);
-	}
-
+async onbtndeleteEndpointClick() {
+    // Aquí se llamaría a la función para borrar un endpoint de la base de datos
+    const endpointname = prompt("Ingrese el nombre de endpoint a borrar:");
+    try {
+        const response = await fetch('/delete-endpoint', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpointname })
+        });
+        if (response.ok) {
+            alert('Endpoint borrado correctamente');
+        } else {
+            alert('Error al borrar el endpoint');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al borrar el endpoint');
+    }
+}
 
 async onbtnupdateEndpointClick() {
-	let endpointname = prompt("Ingrese el nombre de endpoint a modificar:");
+    let endpointname = prompt("Ingrese el nombre de endpoint a modificar:");
 
-	// Se comprobara la existencia del usuario antes seguir pidiendo datos
-	// pensado en la experiencia del usuario sin importar
-	// que debo hacer dos llamadas al servidor
+    // Se comprobara la existencia del usuario antes seguir pidiendo datos
+    // pensado en la experiencia del usuario sin importar
+    // que debo hacer dos llamadas al servidor
 
-	try {
-		const checkResp = await fetch('/check-endpoint', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ endpointname })
+    try {
+        const checkResp = await fetch('/check-endpoint', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpointname })
 
-		});
-		if (!checkResp.ok) { alert('Error comprobando endpoint.'); return; }
-		const checkJson = await checkResp.json();
-		if (!checkJson.exists) { alert('Endpoint no encontrado.'); return; }
-	} catch (err) {
-		console.error(err);
-		alert('Error comprobando 2 endpoint.');
-		return;
-	}
-	
-	// Si el endpoint existe, se piden los nuevos datos
+        });
+        if (!checkResp.ok) { alert('Error comprobando endpoint.'); return; }
+        const checkJson = await checkResp.json();
+        if (!checkJson.exists) { alert('Endpoint no encontrado.'); return; }
+    } catch (err) {
+        console.error(err);
+        alert('Error comprobando 2 endpoint.');
+        return;
+    }
+    
+    // Si el endpoint existe, se piden los nuevos datos
 
-	let newEndpointname = prompt("Ingrese el nuevo nombre de endpoint:");
-	
-	let payload = { endpointname, newEndpointname };
-	
-	try {
-		const resp = await fetch('/update-endpoint', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(payload)
-		});
+    let newEndpointname = prompt("Ingrese el nuevo nombre de endpoint:");
+    
+    let payload = { endpointname, newEndpointname };
+    
+    try {
+        const resp = await fetch('/update-endpoint', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
 
-		if (resp.status === 200) {
-			const j = await resp.json().catch(() => ({}));
-			if (j.updated && j.updated > 0) alert('Endpoint modificado correctamente.');
-			else alert('No se modificó ningún endpoint (endpoint no encontrado).');
-		} else if (resp.status === 404) {
-			alert('Endpoint no encontrado.');
-		} else if (resp.status === 409) {
-			alert('Nombre de endpoint ya existe.');
-		} else {
-			const j = await resp.json().catch(() => null);
-			alert(j?.message || 'Error al modificar el endpoint.');
-		}
-	} catch (err) {
-		console.error(err);
-		alert('Error al modificar el endpoint.');
-	}
-
+        if (resp.status === 200) {
+            const j = await resp.json().catch(() => ({}));
+            if (j.updated && j.updated > 0) alert('Endpoint modificado correctamente.');
+            else alert('No se modificó ningún endpoint (endpoint no encontrado).');
+        } else if (resp.status === 404) {
+            alert('Endpoint no encontrado.');
+        } else if (resp.status === 409) {
+            alert('Nombre de endpoint ya existe.');
+        } else {
+            const j = await resp.json().catch(() => null);
+            alert(j?.message || 'Error al modificar el endpoint.');
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Error al modificar el endpoint.');
+    }
 }
-	
-	onbtnlistarEndpointsClick() {
-    // Aquí se llamaría a la función para listar los endpoints desde la base de datos
-	// por ahora solo lo muestra por consola
-	fetch('/list-endpoints')
-	}
 
-	//--------------------   ASIGNACIONES   ----------------
-	//------------------- Usuarios a Grupos ---------------
+async onbtnlistarEndpointsClick() {
+    // Implementación para listar los endpoints por consola
+    // TODO: hay que implementarla para el frontend
+    try {
+        await fetch('/list-endpoints');
+    } catch (error) {
+        console.error('Error al listar endpoints:', error);
+    }
+}
 
-	onbtninsertarUsuarioAGrupoClick() {
-		// Implementación para insertar usuario en grupo
-		let username = prompt("Ingrese el nombre de usuario:");
-		let groupname = prompt("Ingrese el nombre del grupo:");
-		fetch('/assign-user-to-group', {
-									method: 'POST',
-									headers: {'Content-Type': 'application/json'
-									},
-									body: JSON.stringify({ username, groupname })
-									}).then(response => {
-														if (response.ok) {
-															alert('Usuario insertado correctamente');
-														} else {
-															alert('Error al insertar el usuario');
-														}
-														}).catch(error => {
-															console.error('Error:', error);
-															alert('Error al insertar el usuario');
-														}
-									);
-	}
-	
-	onbtndeleteUsuarioAGrupoClick() {
-		// Implementación para borrar usuario de grupo
-		let username = prompt("Ingrese el nombre de usuario:");
-		let groupname = prompt("Ingrese el nombre del grupo:");
-		fetch('/remove-user-from-group', {
-									method: 'POST',
-									headers: {'Content-Type': 'application/json'
-									},
-									body: JSON.stringify({ username, groupname })
-									}).then(response => {
-														if (response.ok) {
-															alert('Usuario removido correctamente');
-														} else {
-															alert('Error al remover el usuario');
-														}
-													}).catch(error => {
-														console.error('Error:', error);
-														alert('Error al remover el usuario');
-													});
-	}
+//--------------------   ASIGNACIONES   ----------------
 
-	onbtnlistarGruposDeUsuarioClick() {
-		// Implementación para listar grupos de un usuario
-		fetch('/list-user-groups')
-									
-	}
+//------------------- Usuarios a Grupos ---------------
+async onbtninsertarUsuarioAGrupoClick() {
+    // Implementación para insertar usuario en grupo
+    const username = prompt("Ingrese el nombre de usuario:");
+    const groupname = prompt("Ingrese el nombre del grupo:");
+    try {
+        const response = await fetch('/assign-user-to-group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, groupname })
+        });
+        if (response.ok) {
+            alert('Usuario insertado correctamente');
+        } else {
+            alert('Error al insertar el usuario');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al insertar el usuario');
+    }
+}
 
-	//------------------- Grupos a Endpoints ---------------
+async onbtndeleteUsuarioAGrupoClick() {
+    // Implementación para borrar usuario de grupo
+    const username = prompt("Ingrese el nombre de usuario:");
+    const groupname = prompt("Ingrese el nombre del grupo:");
+    try {
+        const response = await fetch('/remove-user-from-group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, groupname })
+        });
+        if (response.ok) {
+            alert('Usuario removido correctamente');
+        } else {
+            alert('Error al remover el usuario');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al remover el usuario');
+    }
+}
 
-	onbtninsertarGrupoAEndpointClick() {
-		// Implementación para asignar grupo a endpoint
-		let groupname = prompt("Ingrese el nombre del grupo:");
-		let endpointname = prompt("Ingrese el nombre del endpoint:");
-		fetch('/assign-endpoint-to-group', {
-									method: 'POST',
-									headers: {'Content-Type': 'application/json'
-									},
-									body: JSON.stringify({ groupname, endpointname })
-									}).then(response => {
-														if (response.ok) {
-															alert('Grupo asignado al endpoint correctamente');
-														} else {
-															alert('Error al asignar el grupo al endpoint');
-														}
-													}).catch(error => {
-														console.error('Error:', error);
-														alert('Error al asignar el grupo al endpoint');
-													});
-	}
+async onbtnlistarGruposDeUsuarioClick() {
+    // Implementación para listar grupos de un usuario por consola
+    // TODO: hay que implementarla para el frontend
+    try {
+        await fetch('/list-user-groups');
+    } catch (error) {
+        console.error('Error al listar grupos de usuario:', error);
+    }
+}
 
-	onbtndeleteGrupoAEndpointClick() {
-		// Implementación para quitar grupo de endpoint
-		let groupname = prompt("Ingrese el nombre del grupo:");
-		let endpointname = prompt("Ingrese el nombre del endpoint:");
-		fetch('/remove-endpoint-from-group', {
-									method: 'POST',
-									headers: {'Content-Type': 'application/json'
-									},
-									body: JSON.stringify({ groupname, endpointname })
-									}).then(response => {
-														if (response.ok) {
-															alert('Grupo removido del endpoint correctamente');
-														} else {
-															alert('Error al remover el grupo del endpoint');
-														}
-													}).catch(error => {
-														console.error('Error:', error);
-														alert('Error al remover el grupo del endpoint');
-													});
-	}
+//------------------- Grupos a Endpoints ---------------
 
-	onbtnlistarEndpointsDeGrupoClick() {
-		// Implementación para listar endpoints de un grupo
-		fetch('/list-group-endpoints')
-	}
+async onbtninsertarGrupoAEndpointClick() {
+    // Implementación para asignar grupo a endpoint
+    const groupname = prompt("Ingrese el nombre del grupo:");
+    const endpointname = prompt("Ingrese el nombre del endpoint:");
+    try {
+        const response = await fetch('/assign-endpoint-to-group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ groupname, endpointname })
+        });
+        if (response.ok) {
+            alert('Grupo asignado al endpoint correctamente');
+        } else {
+            alert('Error al asignar el grupo al endpoint');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al asignar el grupo al endpoint');
+    }
+}
+
+async onbtndeleteGrupoAEndpointClick() {
+    // Implementación para quitar grupo de endpoint
+    const groupname = prompt("Ingrese el nombre del grupo:");
+    const endpointname = prompt("Ingrese el nombre del endpoint:");
+    try {
+        const response = await fetch('/remove-endpoint-from-group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ groupname, endpointname })
+        });
+        if (response.ok) {
+            alert('Grupo removido del endpoint correctamente');
+        } else {
+            alert('Error al remover el grupo del endpoint');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al remover el grupo del endpoint');
+    }
+}
+
+async onbtnlistarEndpointsDeGrupoClick() {
+    // Implementación para listar endpoints de un grupo por consola
+    // TODO:_ hay que implementarla para el frontend
+    try {
+        await fetch('/list-group-endpoints');
+    } catch (error) {
+        console.error('Error al listar endpoints de grupo:', error);
+    }
+}
 	
 
 connectedCallback() {
@@ -647,7 +696,6 @@ connectedCallback() {
 	this.updateGroupBtn.onclick = this.onbtnupdateGrupoClick.bind(this);
 	this.showGroupsBtn.onclick = this.onbtnlistarGruposClick.bind(this);
 
-	
 	this.insertEndpointBtn.onclick = this.onbtninsertarEndpointClick.bind(this);
 	this.deleteEndpointBtn.onclick = this.onbtndeleteEndpointClick.bind(this);
 	this.updateEndpointBtn.onclick = this.onbtnupdateEndpointClick.bind(this);
@@ -660,11 +708,14 @@ connectedCallback() {
 	this.insertGrouptoEndpointBtn.onclick = this.onbtninsertarGrupoAEndpointClick.bind(this);
 	this.deleteGrouptoEndpointBtn.onclick = this.onbtndeleteGrupoAEndpointClick.bind(this);
 	this.showGroupEndpointsBtn.onclick = this.onbtnlistarEndpointsDeGrupoClick.bind(this);
+
+	//  ----------------  Demo de funciones /log y /sayHello  ----------------
+	this.btnLOG.onclick = this.onbtnLogClick.bind(this);
+	this.btnSayHello.onclick = this.onbtnSayHelloClick.bind(this);
 	
 	}
 
-
-disconnectedCallback() {
+	disconnectedCallback() {
 
 	this.loginBtn.onclick = null;
 	this.logoutBtn.onclick = null;
@@ -693,9 +744,13 @@ disconnectedCallback() {
 	this.deleteGrouptoEndpointBtn.onclick = null;
 	this.showGroupEndpointsBtn.onclick = null;
 	
+	// --------- Demo de funciones /log y /sayHello  ----------------
+	this.btnLOG.onclick = null;
+	this.btnSayHello.onclick = null;
+
 	}
 
-}  // fin de la clase menu
+}
 
 
 customElements.define('main-menu', Menu);

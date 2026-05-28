@@ -5,11 +5,17 @@
 
 const BASE = process.env.BASE || 'http://localhost:3000';
 
+let _totalTests = 0;
+let _successTests = 0;
+
 function ok(name) {
+    _totalTests++;
+    _successTests++;
     console.log('OK: ' + name);
 }
 
 function err(name, details) {
+    _totalTests++;
     console.error('ERROR: ' + name + (details ? ' - ' + details : ''));
 }
 
@@ -122,6 +128,73 @@ async function run() {
     try { await post('/delete-endpoint', { endpointname: e2 }); } catch (e) {}
     try { await post('/delete-endpoint', { endpointname: e1 + '_new' }); } catch (e) {}
 
+    // --- ASSIGNMENTS (users <-> groups, endpoints <-> groups) ---
+    await post('/register', { username: user, password: 'p' });
+    await post('/register-group', { groupname: g1 });
+    await post('/register-endpoint', { endpointname: e1 });
+
+    r = await post('/assign-user-to-group', { username: user, groupname: g1 });
+    if (r.status === 200) ok('assign user to group'); else { err('assign user to group', r.status + ' ' + r.text); failed = true; }
+
+    r = await post('/assign-user-to-group', { username: user, groupname: g1 });
+    if (r.status === 200) ok('assign user to group idempotent'); else { err('assign user to group idempotent', r.status + ' ' + r.text); failed = true; }
+
+    r = await post('/remove-user-from-group', { username: user, groupname: g1 });
+    if (r.status === 200) ok('remove user from group'); else { err('remove user from group', r.status + ' ' + r.text); failed = true; }
+
+    r = await post('/remove-user-from-group', { username: user, groupname: g1 });
+    if (r.status === 404) ok('remove user from group again'); else { err('remove user from group again', r.status + ' ' + r.text); failed = true; }
+
+    r = await post('/assign-endpoint-to-group', { groupname: g1, endpointname: e1 });
+    if (r.status === 200) ok('assign endpoint to group'); else { err('assign endpoint to group', r.status + ' ' + r.text); failed = true; }
+
+    // idempotent assign endpoint -> group
+    r = await post('/assign-endpoint-to-group', { groupname: g1, endpointname: e1 });
+    if (r.status === 200) ok('assign endpoint to group idempotent'); else { err('assign endpoint to group idempotent', r.status + ' ' + r.text); failed = true; }
+
+    r = await post('/remove-endpoint-from-group', { groupname: g1, endpointname: e1 });
+    if (r.status === 200) ok('remove endpoint from group'); else { err('remove endpoint from group', r.status + ' ' + r.text); failed = true; }
+
+    r = await post('/remove-endpoint-from-group', { groupname: g1, endpointname: e1 });
+    if (r.status === 404) ok('remove endpoint from group again'); else { err('remove endpoint from group again', r.status + ' ' + r.text); failed = true; }
+
+    // cleanup
+    // --- LOGIN / LOGOUT ---
+    r = await post('/login', { username: user, password: 'p' });
+    if (r.status === 200) ok('login success'); else { err('login success', r.status + ' ' + r.text); failed = true; }
+
+    r = await post('/login', { username: user, password: 'wrong' });
+    if (r.status === 401) ok('login wrong password'); else { err('login wrong password', r.status + ' ' + r.text); failed = true; }
+
+    // login non-existing user
+    r = await post('/login', { username: 'noexist_' + t, password: 'x' });
+    if (r.status === 401) ok('login non-existing user'); else { err('login non-existing user', r.status + ' ' + r.text); failed = true; }
+
+    r = await post('/logout', { username: user });
+    if (r.status === 200) ok('logout success'); else { err('logout success', r.status + ' ' + r.text); failed = true; }
+
+    r = await post('/logout', { username: user });
+    if (r.status === 404) ok('logout non-existing session'); else { err('logout non-existing session', r.status + ' ' + r.text); failed = true; }
+
+    // --- CHECK endpoints/groups ---
+    r = await post('/check-group', { groupname: g1 });
+    if (r.status === 200 && r.json && r.json.exists) ok('check group exists'); else { err('check group exists', r.status + ' ' + r.text); failed = true; }
+
+    r = await post('/check-group', { groupname: 'no_g_' + t });
+    if (r.status === 200 && r.json && !r.json.exists) ok('check group not exists'); else { err('check group not exists', r.status + ' ' + r.text); failed = true; }
+
+    r = await post('/check-endpoint', { endpointname: e1 });
+    if (r.status === 200 && r.json && r.json.exists) ok('check endpoint exists'); else { err('check endpoint exists', r.status + ' ' + r.text); failed = true; }
+
+    r = await post('/check-endpoint', { endpointname: '/noep_' + t });
+    if (r.status === 200 && r.json && !r.json.exists) ok('check endpoint not exists'); else { err('check endpoint not exists', r.status + ' ' + r.text); failed = true; }
+
+    // cleanup
+    try { await post('/delete-endpoint', { endpointname: e1 }); } catch (e) {}
+    try { await post('/delete-group', { groupname: g1 }); } catch (e) {}
+    try { await post('/delete-user', { username: user }); } catch (e) {}
+
+    console.log(`Se corrieron ${_totalTests} tests, ${_successTests} fueron exitosos.`);
     if (failed) process.exit(1);
     console.log('All tests finished.');
 }
