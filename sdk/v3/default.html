@@ -154,17 +154,16 @@
 
 async onbtnLogClick() {
     const username = this.currentUser;
-    const endpoint = 'log';
     try {
         const response = await fetch('/log', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, endpoint })
+            body: JSON.stringify({ username })
         });
         if (response.ok) {
-            alert('Usuario Autorizado');
+            alert('Mirar Consola');
         } else {
-            alert('Usuario No Autorizado');
+            alert('Mirar Consola');
         }
     } catch (error) {
         console.error('Error:', error);
@@ -174,6 +173,9 @@ async onbtnLogClick() {
 
 async onbtnSayHelloClick() {
     const username = this.currentUser;
+    console.log('Enviando mensaje a /sayHello con username:', username);
+
+
     try {
         const response = await fetch('/sayHello', {
             method: 'POST',
@@ -194,15 +196,24 @@ async onbtnSayHelloClick() {
 
 // ----------------   USUARIOS   ----------------
 
-async onbtnLoginClick() {
+async onbtnLoginClick() 
+{
     // Aquí se llamaría a la función para loguear al usuario
     const username = prompt("Ingrese su nombre de usuario:");
     const password = prompt("Ingrese su contraseña:");
+
+    // Se calcula el hash SHA-256 de la contraseña antes de enviarla al servidor
+    let accesskey = null;
+    try {
+        accesskey = await this.calcularHashSHA256(password);
+    } catch (error) {
+        console.error(error);
+    }
     try {
         const response = await fetch('/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
+            body: JSON.stringify({ username, accesskey })
         });
         if (!response.ok) {
             alert('Login fallido');
@@ -252,11 +263,19 @@ async onbtninsertarUsuarioClick() {
     // Aquí se llamaría a la función para insertar un nuevo usuario en la base de datos
     const username = prompt("Ingrese el nombre de usuario:");
     const password = prompt("Ingrese la contraseña:");
+    // Se calcula el hash SHA-256 de la contraseña antes de enviarla al servidor
+    let accesskey = null;
+    try {
+        accesskey = await this.calcularHashSHA256(password);
+    } catch (error) {
+        console.error(error);
+    }
+    
     try {
         const response = await fetch('/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
+            body: JSON.stringify({ username, accesskey })
         });
         if (response.ok) {
             alert('Usuario insertado correctamente');
@@ -325,7 +344,15 @@ async onbtnupdateUsuarioClick() {
     let newPassword = prompt("Ingrese la nueva contraseña:");
     if (!newPassword) { alert('Contraseña no válida.'); return; }
 
-    let payload = { username,newUsername, newPassword };
+    // Se calcula el hash SHA-256 de la contraseña antes de enviarla al servidor
+    let accesskey = null;
+    try {
+        accesskey = await this.calcularHashSHA256(newPassword);
+    } catch (error) {
+        console.error(error);
+    }
+
+    let payload = { username, newUsername, accesskey };
     
     try {
         const resp = await fetch('/update-user', {
@@ -680,6 +707,38 @@ async onbtnlistarEndpointsDeGrupoClick() {
     }
 }
 	
+// -----------------  Codigo de encriptacion sha256 para la contraseña  -----------------
+// ----------------- Ejemplo de codigo del profesor ------------------------
+// Función para calcular el hash SHA-256 de una cadena
+async calcularHashSHA256(cadena)
+{
+const encoder = new TextEncoder();
+const data = encoder.encode(cadena);
+const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+const hashArray = Array.from(new Uint8Array(hashBuffer));
+const hashHex = hashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
+return hashHex;
+}
+
+/*
+// Función principal asincrónica
+async function main()
+{
+try
+{
+const cadenaOriginal = 'Hola, mundo!';
+// Calcular el hash SHA-256 de la cadena
+const hash = await calcularHashSHA256(cadenaOriginal);
+console.log('Hash SHA-256:', hash);
+}
+catch (error)
+{
+console.error(error);
+}
+}
+*/
+
+
 
 connectedCallback() {
 
@@ -750,7 +809,11 @@ connectedCallback() {
 
 	}
 
+    
+
+
 }
+
 
 
 customElements.define('main-menu', Menu);

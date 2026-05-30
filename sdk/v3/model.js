@@ -6,15 +6,15 @@ class UserSession {
     constructor() { this.status = 'disabled'; }
 }
 
-function authenticate(username, password) {
+function authenticate(username, hashkey) {
     const sql = "SELECT count(*) as total FROM `user` WHERE username=? AND password=?";
     const stmt = db.prepare(sql);
-    const row = stmt.get(username, password);
+    const row = stmt.get(username, hashkey);
     return row && row.total === 1;
 }
 
-function login(username, password) {
-    const isAuthenticated = authenticate(username, password);
+function login(username, hashkey) {
+    const isAuthenticated = authenticate(username, hashkey);
     if (!isAuthenticated) return null;
     let session = userSessions.get(username);
     if (!session) {
@@ -43,9 +43,9 @@ function chequearUsuario(username) {
     return row && row.cnt > 0;
 }
 
-function createUser(username, password) {
+function createUser(username, accesskey) {
     const stmt = db.prepare('INSERT INTO `user` (username, password) VALUES (?, ?)');
-    const result = stmt.run(username, password);
+    const result = stmt.run(username, accesskey);
     return { id: result.lastInsertRowid || null, username };
 }
 
@@ -55,16 +55,16 @@ function deleteUser(username) {
     return res.changes || 0;
 }
 
-function updateUser(username, newUsername, newPassword) {
+function updateUser(username, newUsername, accesskey) {
     if (newUsername && newUsername !== username) {
-        const stmt = db.prepare('UPDATE user SET username = ?' + (newPassword ? ', password = ?' : '') + ' WHERE username = ? COLLATE NOCASE');
-        const params = newPassword ? [newUsername, newPassword, username] : [newUsername, username];
+        const stmt = db.prepare('UPDATE user SET username = ?' + (accesskey ? ', password = ?' : '') + ' WHERE username = ? COLLATE NOCASE');
+        const params = accesskey ? [newUsername, accesskey, username] : [newUsername, username];
         const res = stmt.run(...params);
         return res.changes || 0;
     }
-    if (newPassword) {
+    if (accesskey) {
         const stmt = db.prepare('UPDATE user SET password = ? WHERE username = ? COLLATE NOCASE');
-        const res = stmt.run(newPassword, username);
+        const res = stmt.run(accesskey, username);
         return res.changes || 0;
     }
     return 0;
@@ -132,7 +132,7 @@ function modificarEndpoint(path, newPath) {
     return res.changes || 0;
 }
 
-// Assignments
+
 function retornarIdUsuario(username) {
     const stmt = db.prepare('SELECT id FROM user WHERE username = ? COLLATE NOCASE');
     const r = stmt.get(username);
@@ -212,23 +212,6 @@ function isAuthorized( username, endpointPath )
         throw err;
     }
 }
-
-
-/*
-function isAuthorized(username, endpoint) {
-    const sql = `
-    SELECT COUNT(*) as cnt
-    FROM user u
-    JOIN members m ON u.id = m.id_user
-    JOIN access a ON m.id_group = a.id_group
-    JOIN endpoint e ON a.id_endpoint = e.id
-    WHERE u.username = ? COLLATE NOCASE AND e.path = ? COLLATE NOCASE
-    `;
-    const stmt = db.prepare(sql);
-    const row = stmt.get(username, endpoint);
-    return row && row.cnt > 0;
-}
-*/
 
 export {
     login, logout, chequearUsuario, createUser, deleteUser, updateUser,

@@ -3,10 +3,13 @@ import { config, db } from './database.js';
 import * as model from './model.js';
 
 function getRequestbody(request) {
+    if (request._rawBody !== undefined) return Promise.resolve(request._rawBody);
     return new Promise(function(resolve) {
         let body = '';
         request.on('data', chunk => body += chunk.toString());
-        request.on('end', () => resolve(body));
+        request.on('end', () => { request._rawBody = body; resolve(body); });
+        // also handle errors
+        request.on('error', () => { request._rawBody = ''; resolve(''); });
     });
 }
 
@@ -18,7 +21,7 @@ async function login_handler(request, response) {
     try {
         const data = await getRequestbody(request);
         const obj = JSON.parse(data);
-        const output = model.login(obj.username, obj.password);
+        const output = model.login(obj.username, obj.accesskey);
         if (output == null) {
             response.writeHead(401, { 'Content-Type': 'application/json' });
             return response.end(JSON.stringify({ status: 'error', message: 'Error' }));
@@ -75,7 +78,7 @@ async function register_handler(request, response) {
             response.writeHead(409, { 'Content-Type': 'application/json' });
             return response.end(JSON.stringify({ status: 'error', message: 'Error' }));
         }
-        const r = model.createUser(obj.username, obj.password);
+        const r = model.createUser(obj.username, obj.accesskey);
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ status: 'success', username: r.username }));
     } catch (err) {
@@ -127,7 +130,7 @@ async function update_user_handler(request, response) {
                 return response.end(JSON.stringify({ status: 'error', message: 'Error' }));
             }
         }
-        const updated = model.updateUser(obj.username, obj.newUsername, obj.newPassword);
+        const updated = model.updateUser(obj.username, obj.newUsername, obj.accesskey);
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ status: 'success', updated }));
     } catch (err) {
@@ -457,15 +460,6 @@ async function log_handler(request, response) {
         return response.end(JSON.stringify({ status: 'error', message: 'Error' }));
     }
     try {
-        const data = await getRequestbody(request);
-        const obj = JSON.parse(data);
-        const output = model.isAuthorized(obj.username, request.url.slice(1));
-        let respuesta;
-        if (output) { respuesta = 'Autorizado'; }
-        else { respuesta = 'No Autorizado'; }
-
-        console.log(`Usuario ${obj.username}, acceso al endpoint ${request.url}. Autorizacion: ${respuesta}`);
-        
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ status: 'success', message: 'Check server console for log' }));
     } catch (err) {
@@ -483,15 +477,6 @@ async function say_hello_handler(request, response) {
         return response.end(JSON.stringify({ status: 'error', message: 'Error' }));
     }
     try {
-        const data = await getRequestbody(request);
-        const obj = JSON.parse(data);
-        const output = model.isAuthorized(obj.username, request.url.slice(1));  // se modifica request.url para que no muestre / y solo endpoint        
-        let respuesta;
-        if (output) { respuesta = 'Autorizado'; }
-        else { respuesta = 'No Autorizado'; } 
-
-        console.log(`Usuario ${obj.username}, acceso al endpoint ${request.url}. Autorizacion: ${respuesta}`);
-
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ status: 'success', message: 'Check server console for log' }));
     } catch (err) {
@@ -502,6 +487,7 @@ async function say_hello_handler(request, response) {
 
 
 export {
+    getRequestbody,
     login_handler, logout_handler, default_handler,
     register_handler, delete_user_handler, update_user_handler,
     register_group_handler, delete_group_handler, update_group_handler,

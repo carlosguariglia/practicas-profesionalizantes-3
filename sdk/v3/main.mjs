@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { URL } from 'node:url';
 import { db, config } from './database.js';
 import * as handlers from './handlers.js';
+import * as model from './model.js';
 
 // Se modularizo:
 // database.js: toda la lógica de acceso a datos (usuarios, grupos, endpoints)
@@ -57,19 +58,40 @@ async function request_dispatcher(request, response)
   const path = url.pathname;
   const handler = router.get(path);
 
-  if ((path === '/') || (path === '/login')) 
-  {   if (handler) return await handler(request, response);
-      response.writeHead(404, { 'Content-Type': 'text/plain' });
-      response.end('Método no encontrado');
-    
+  // si la ruta es '/' o '/login', no se requiere autorización
 
-      }
-  else
-  {
+    if ((path === '/') || (path === '/login')) 
+    {   if (handler) return await handler(request, response);
+      //response.writeHead(404, { 'Content-Type': 'text/plain' });
+      //response.end('Método no encontrado');
+    }
+    else
+  { 
     // Para otras rutas, se requiere autorización
-  
-    console.log(`Request headers: ${JSON.stringify(request.headers)}`);
-    console.log('Authorization: ' + (request.headers['authorization'] || 'N/A'));
+    //TODO: hay que hacer el autorizador aca
+    //  por ahora al usuario lo saco del json que viene en el body de la request,
+    // pero lo ideal sería sacarlo del token de autenticación (si es que se implementa)
+    // Por el momento y solo para esta instancia del ejercicio solo se probara con
+    // /log y /sayHello y no se hara extensivo a todas las rutas ya que no siembre viajara el 
+    // usuario activo en el body porque por ejemplo en crear usuario el username que viaja 
+    // es el nuevo usuario a crear y no el usuario activo que hace la request, lo mismo para crear grupos y endpoints, etc.
+    const data = await handlers.getRequestbody(request);
+    const obj = JSON.parse(data);
+    const output = model.isAuthorized(obj.username, request.url.slice(1));
+
+    if (output == null) {
+              response.writeHead(401, { 'Content-Type': 'application/json' });
+              return response.end(JSON.stringify({ status: 'error', message: 'Error' }));
+            }
+    if (!output) {
+                console.log(`Usuario ${obj.username}, acceso al endpoint ${request.url}. Autorizacion: No Autorizado`);
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                return response.end(JSON.stringify({ status: 'error', message: 'No autorizado' }));
+            }
+    console.log(`Usuario ${obj.username}, acceso al endpoint ${request.url}. Autorizacion: Autorizado`);
+    if (handler) return await handler(request, response);
+    response.writeHead(404, { 'Content-Type': 'text/plain' });
+    response.end('Método no encontrado');
     
   }
 }
