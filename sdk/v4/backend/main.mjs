@@ -53,61 +53,94 @@ router.set('/sayHello', handlers.say_hello_handler);
 
 
 // request dispatcher: busca el handler correspondiente a la ruta y lo ejecuta
+// se agrego todo el manejo que hacia el login_handler en el request dispatcher
+// el manejo de errores pensar en un try-catch general para los errores generales (500)
+// y luego try-catch para errores específicos (400, 401, etc)
+
 async function request_dispatcher(request, response)
 {
-  // Codigo para habilitar CORS (Cross-Origin Resource Sharing)
-  response.setHeader('Access-Control-Allow-Origin', '*');   // el * permite cualquier origen, se deberia restringir a la IP del frontend
-  response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS'); // metodos permitidos
-  response.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-User-ID, x-User-Accesskey, x-API-Version'); // cabeceras permitidas
-  
-  if (request.method === 'OPTIONS')
-    {
-        response.writeHead(204);
-        response.end();
-        return;
-    }
-  // fin del codigo CORS
-    
-  const url = new URL(request.url, 'http://' + config.server.ip);
-  const path = url.pathname;
-  const handler = router.get(path);
+  try {  // Codigo para habilitar CORS (Cross-Origin Resource Sharing)
+      response.setHeader('Access-Control-Allow-Origin', '*');   // el * permite cualquier origen, se deberia restringir a la IP del frontend
+      response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS'); // metodos permitidos
+      response.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-User-ID, Authorization, x-API-Version'); // cabeceras permitidas
+      
+      if (request.method === 'OPTIONS')
+        {
+            response.writeHead(204);
+            response.end();
+            return;
+        }
+      // fin del codigo CORS
+      let userID = null;
+      let authHeader = null;
+      let bearerToken = null;
+      let url = null;
+      let path = null;
+      let handler = null;
+      let endpointName = null;
 
-  // si la ruta es '/login', no se requiere autorización
-  // si el usuario es admin, esta autorizado a todo y cuando digo todo es todo
+      // chequeo que se hace siempre, para separar y obtener el Bearer Token 
+      try {
+            userID = request.headers['x-user-id'];
+            authHeader = request.headers['authorization'].split(' '); 
+            bearerToken = authHeader[1];
+            url = new URL(request.url, 'http://' + config.server.ip);
+            path = url.pathname;
+            handler = router.get(path);
+            endpointName =  url.pathname.slice(1);
+            
+            if (authHeader[0] !== 'Bearer') {
+              response.writeHead(400, { 'Content-Type': 'application/json' });
+              return response.end(JSON.stringify({ exception: 'BadRequest', detail: ['Missing or invalid authorization header'] }));
+              }
 
-
-    if ( (path === '/login') || (request.headers['x-user-id'] === 'admin') )
-    {   if (handler) return await handler(request, response);
-      //response.writeHead(404, { 'Content-Type': 'text/plain' });
-      //response.end('Método no encontrado');
-    }
-    else
-    { 
-    // Para otras rutas, se requiere autorización
-    //TODO: hay que hacer el autorizador aca
-    //  Ahora el usuario y la clave viajan por la cabecera (header), ya no se usa el body del JSON
-    // para sacar el nombre de usuario
-    
-    // const data = await handlers.getRequestbody(request);
-    // const obj = JSON.parse(data);
-    
-    const output = model.isAuthorized(request.headers['x-user-id'], url.pathname.slice(1));  // el slice es para sacar la barra del inicio de la ruta
-
-    if (output == null) {
+            if ((path!=='/login') && (!handler)) {
+              response.writeHead(400, { 'Content-Type': 'application/json' });
+              return response.end(JSON.stringify({ status: 'BadRequest', message: 'Endpoint no encontrado' }));
+            }
+            // aca se controla que el metodo sea POST para evitar validarlo en cada handler
+            if (request.method !== 'POST') {
+              response.writeHead(400, { 'Content-Type': 'application/json' });
+              return response.end(JSON.stringify({ exception: 'BadRequest', detail: ['Invalid method'] }));
+            }
+        } catch (err) {
+              console.log("Error procesando la solicitud:", err);
+              response.writeHead(400, { 'Content-Type': 'application/json' });
+              return response.end(JSON.stringify({ exception: 'BadRequest', detail: ['Invalid specification'] }));
+        }
+      // si la ruta es '/login' no se requiere autorización
+      if (path === '/login')
+        {   
+          const output = model.login(userID, bearerToken);
+          if (output) {
+              response.writeHead(200, { 'Content-Type': 'application/json' });
+              return response.end(JSON.stringify({ status: 'success', message: 'Login successful' }));
+          }
+        }
+        else
+        { 
+        // Para otras rutas, se requiere autorización
+        //  Ahora el usuario y la clave viajan por la cabecera (header), ya no se usa 
+        //  el body del JSON para sacar el nombre de usuario
+        try {
+            
+            if (!model.isAuthorized(userID, endpointName)) {
+                      response.writeHead(401, { 'Content-Type': 'application/json' });
+                      return response.end(JSON.stringify({ status: 'error', message: 'Invalid Authorization' }));
+                    }
+            
+            console.log(`Usuario ${userID}, acceso al endpoint ${request.url}. Autorizacion: Autorizado`);
+            
+            return await handler(request, response);
+        } catch (err) {
               response.writeHead(401, { 'Content-Type': 'application/json' });
-              return response.end(JSON.stringify({ status: 'error', message: 'Error' }));
-            }
-    if (!output) {
-          console.log(`Usuario ${request.headers['x-user-id']}, acceso al endpoint ${url.pathname}. Autorizacion: No Autorizado`);
-                response.writeHead(403, { 'Content-Type': 'application/json' });
-                return response.end(JSON.stringify({ status: 'error', message: 'No autorizado' }));
-            }
-    console.log(`Usuario ${request.headers['x-user-id']}, acceso al endpoint ${request.url}. Autorizacion: Autorizado`);
-    if (handler) return await handler(request, response);
-    response.writeHead(404, { 'Content-Type': 'text/plain' });
-    response.end('Método no encontrado');
-    
-  }
+              return response.end(JSON.stringify({ status: 'Unauthorized', message: 'Invalid Authorization' }));
+        }
+      }
+    }catch (err) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                return response.end(JSON.stringify({ status: 'error', message: 'Internal Server Error' }));
+      }
 }
 
 function start() {
@@ -119,19 +152,3 @@ function start() {
 
 const server = createServer(request_dispatcher);
 server.listen(config.server.port, config.server.ip, start);
-
-
-
-//* PREGUNTAR: es correcto la forma de  habilitar admin para todoas  las rutas
-//* como esta hecho en la  linea 79?
-
-//* Puedo eliminar los botones  ir a LOG y sayHello
-
-//* porque los metodos de listar usuario, grupos etc por consola,
-//* aunque no les ponga GET,POST y solo los mande el explorardor los toma como GET
-//* se que es una funcion auxiliar pero es correcto haberlo forzado a que sea POST
-
-//* en el frontend es correcto que haya renombrado las variables que son distintas al usuario actual
-//* por ejemplo en agregar un usuario newusername en vez de usar username ya que es global y se confunde con el usuario activo
-//* y entonces cuando lo mando por el body del JSON poner username: newusername?
-//* o debo cambiar la forma que lo estoy haciendo

@@ -20,7 +20,8 @@
         username = this.currentUser || username; // se intenta usar el usuario logueado en la sesión, si no se mantiene el valor global (puede ser null si no se logueó nadie)
         return {    'Content-Type': 'application/json',
                     'x-user-id': username,
-                    'x-user-accesskey': accesskey,
+                    // 'x-user-accesskey': accesskey,
+                    'Authorization': accesskey,
                     'x-api-version': xAPIVer 
         }
         };
@@ -155,66 +156,10 @@
 				this.showGroupEndpointsBtn.textContent = 'Mostrar Endpoints de Grupo por Consola';
 				this.row6.appendChild(this.showGroupEndpointsBtn);
 
-				this.btnLOG = document.createElement('button');
-				this.btnLOG.textContent = 'Prueba ir a \log';
-				this.btnSayHello = document.createElement('button');
-				this.btnSayHello.textContent = 'Prueba ir a \sayHello';
-				this.row7.appendChild(this.btnLOG);
-				this.row7.appendChild(this.btnSayHello);
-
 				this.appendChild(this.table);
 				// la tabla permanecera oculta hasta que se loguee
 				this.table.style.display = 'none';
 			}
-
-
-
-
-
-// ----------------  Demo de funciones /log y /sayHello  ----------------
-
-//TODO: preguntar el uso de username o directamente this.currentUser
-
-async onbtnLogClick() {
-    
-    try {
-        const response = await fetch(host + '/log', {
-            method: 'POST',
-            headers:  getGlobalClientHeaders(),
-            body: JSON.stringify({ })
-        });
-        if (response.ok) {
-            alert('Mirar Consola');
-        } else {
-            alert('Mirar Consola');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error al enviar el mensaje de log');
-    }
-}
-
-async onbtnSayHelloClick() {
-    
-    console.log('Enviando mensaje a /sayHello con username:', this.currentUser);
-
-
-    try {
-        const response = await fetch(host + '/sayHello', {
-            method: 'POST',
-            headers:  getGlobalClientHeaders(),
-            body: JSON.stringify({ })
-        });
-        if (response.ok) {
-            alert('Mirar Consola');
-        } else {
-            alert('Mirar Consola');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error al enviar el mensaje de log');
-    }
-}
 
 
 // ----------------   USUARIOS   ----------------
@@ -227,7 +172,7 @@ async onbtnLoginClick()
     
     // Se calcula el hash SHA-256 de la contraseña antes de enviarla al servidor
     try {
-        accesskey = await this.calcularHashSHA256(password);
+        accesskey = 'Bearer ' + await this.calcularHashSHA256(password);
     } catch (error) {
         console.error(error);
     }
@@ -281,7 +226,6 @@ async onbtnLogoutClick() {
     }
 }
 
-// revisar el uso de username o this.currentUser en las funciones de insertar, borrar, modificar y listar usuarios
 async onbtninsertarUsuarioClick() {
     // Aquí se llamaría a la función para insertar un nuevo usuario en la base de datos
     const newusername = prompt("Ingrese el nombre de usuario:");
@@ -298,7 +242,7 @@ async onbtninsertarUsuarioClick() {
         const response = await fetch(host + '/register', {
             method: 'POST',
             headers: getGlobalClientHeaders(),
-            body: JSON.stringify({ username: newusername, accesskey: newuseraccesskey })
+            body: JSON.stringify({ 'username': newusername, 'accesskey': newuseraccesskey })
         });
         if (response.ok) {
             alert('Usuario insertado correctamente');
@@ -312,13 +256,13 @@ async onbtninsertarUsuarioClick() {
 }
 
 async onbtndeleteUsuarioClick() {
-    // Aquí se llamaría a la función para borrar un usuario de la base de datos
     const delusername = prompt("Ingrese el nombre de usuario a borrar:");
     try {
         const response = await fetch(host + '/deleteUser', {
             method: 'POST',
             headers: getGlobalClientHeaders(),
-            body: JSON.stringify({ username: delusername })
+            body: JSON.stringify({ 'username': delusername })
+        
         });
         if (response.ok) {
             alert('Usuario borrado correctamente');
@@ -338,21 +282,7 @@ async onbtnupdateUsuarioClick() {
     // que debo hacer dos llamadas al servidor
     
     // el chequeo de la existencia sera responsabilidad del servidor
-    /* try {
-        const checkResp = await fetch('/checkUser', {
-            method: 'POST',
-            headers: getGlobalClientHeaders(),
-            body: JSON.stringify({ username })
-        });
-        if (!checkResp.ok) { alert('Error comprobando usuario.'); return; }
-        const checkJson = await checkResp.json();
-        if (!checkJson.exists) { alert('Usuario no encontrado.'); return; }
-    } catch (err) {
-        console.error(err);
-        alert('Error comprobando usuario.');
-        return;
-    }
-    */
+    
     let modusername = prompt("Ingrese el nombre de usuario a modificar:");
     
     let newUsernameInput = prompt("Ingrese el nuevo nombre de usuario (enter para dejar igual):");
@@ -375,7 +305,7 @@ async onbtnupdateUsuarioClick() {
         console.error(error);
     }
 
-    let payload = { username: modusername, newUsername, accesskey: modaccesskey };
+    let payload = { 'username': modusername, 'newUsername': newUsername, 'accesskey': modaccesskey };
     
     try {
         const resp = await fetch(host + '/updateUser', {
@@ -643,7 +573,7 @@ async onbtninsertarUsuarioAGrupoClick() {
         const response = await fetch(host + '/assignUserToGroup', {
             method: 'POST',
             headers: getGlobalClientHeaders(),
-            body: JSON.stringify({ username: inusername, groupname })
+            body: JSON.stringify({ 'username': inusername, 'groupname': groupname })
         });
         if (response.ok) {
             alert('Usuario insertado correctamente');
@@ -664,7 +594,7 @@ async onbtndeleteUsuarioAGrupoClick() {
         const response = await fetch(host + '/removeUserFromGroup', {
             method: 'POST',
             headers: getGlobalClientHeaders(),
-            body: JSON.stringify({ username: delusername, groupname })
+            body: JSON.stringify({ 'username': delusername, 'groupname': groupname })
         });
         if (response.ok) {
             alert('Usuario removido correctamente');
@@ -701,7 +631,7 @@ async onbtninsertarGrupoAEndpointClick() {
         const response = await fetch(host + '/assignEndpointToGroup', {
             method: 'POST',
             headers: getGlobalClientHeaders(),
-            body: JSON.stringify({ groupname, endpointname })
+            body: JSON.stringify({ 'groupname': groupname, 'endpointname': endpointname })
         });
         if (response.ok) {
             alert('Grupo asignado al endpoint correctamente');
@@ -722,7 +652,7 @@ async onbtndeleteGrupoAEndpointClick() {
         const response = await fetch(host + '/removeEndpointFromGroup', {
             method: 'POST',
             headers: getGlobalClientHeaders(),
-            body: JSON.stringify({ groupname, endpointname })
+            body: JSON.stringify({ 'groupname': groupname, 'endpointname': endpointname })
         });
         if (response.ok) {
             alert('Grupo removido del endpoint correctamente');
@@ -789,9 +719,6 @@ connectedCallback() {
 	this.deleteGrouptoEndpointBtn.onclick = this.onbtndeleteGrupoAEndpointClick.bind(this);
 	this.showGroupEndpointsBtn.onclick = this.onbtnlistarEndpointsDeGrupoClick.bind(this);
 
-	//  ----------------  Demo de funciones /log y /sayHello  ----------------
-	this.btnLOG.onclick = this.onbtnLogClick.bind(this);
-	this.btnSayHello.onclick = this.onbtnSayHelloClick.bind(this);
 	
 	}
 
@@ -824,11 +751,8 @@ disconnectedCallback() {
 	this.deleteGrouptoEndpointBtn.onclick = null;
 	this.showGroupEndpointsBtn.onclick = null;
 	
-	// --------- Demo de funciones /log y /sayHello  ----------------
-	this.btnLOG.onclick = null;
-	this.btnSayHello.onclick = null;
-
-	}
+		
+    }
 
 } // Fin de la clase Menu
 

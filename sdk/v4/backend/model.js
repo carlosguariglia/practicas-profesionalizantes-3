@@ -190,7 +190,37 @@ function removerGrupoEndpoint(groupname, endpointname) {
 
 function isAuthorized( username, endpointPath )
 {   
-    if (!username || !endpointPath) return null; // si no se proporciona usuario o ruta, no se puede autorizar (null indica error en la consulta, no que el usuario no esta autorizado)
+    if (!username || !endpointPath) return false; // si no se proporciona usuario o ruta, no se puede autorizar (null indica error en la consulta, no que el usuario no esta autorizado)
+
+    const sql = `
+    SELECT COUNT(*) as total FROM (
+  SELECT 1 FROM members m
+    JOIN "group" g ON m.id_group = g.id
+    JOIN user u ON m.id_user = u.id
+    WHERE u.username = ? AND g.name = ? COLLATE NOCASE
+  UNION ALL
+  SELECT 1 FROM access a
+    JOIN members m ON a.id_group = m.id_group
+    JOIN user u ON m.id_user = u.id
+    JOIN endpoint e ON a.id_endpoint = e.id
+    WHERE u.username = ? AND e.path = ? COLLATE NOCASE
+) t;
+    `;
+
+    try {
+        const stmt = db.prepare(sql);
+        const row = stmt.get(username, 'ADMIN_ONLY', username, endpointPath);
+        return (row.total > 0);
+    } catch (err) {
+        console.error("Error consultando permisos:", err);
+        return false; // en caso de error en la consulta, retornamos null para indicar que no se pudo determinar la autorización
+    }
+}
+
+/*
+    // aca debo revisar si el usuario pertence al grupo ADMIN_ONLY de la base de datos,
+    // si es asi, esta autorizado a todo, si no, debo revisar si el usuario pertenece a algun grupo que tenga acceso al endpoint solicitado
+    
 
     const sql = `
         SELECT count(*) as total
@@ -199,7 +229,7 @@ function isAuthorized( username, endpointPath )
         JOIN user u ON m.id_user = u.id
         JOIN endpoint e ON a.id_endpoint = e.id
         WHERE u.username = ? 
-          AND e.path = ?
+        AND e.path = ?
     `;
 
     try {
@@ -209,11 +239,16 @@ function isAuthorized( username, endpointPath )
 
         // Si el conteo es mayor a 0, tiene permiso
         return row.total > 0;
-    } catch (err) {
+  
+
+
+
+        } catch (err) {
         console.error("Error consultando permisos:", err);
         throw err;
     }
 }
+*/
 
 export {
     login, logout, chequearUsuario, createUser, deleteUser, updateUser,
