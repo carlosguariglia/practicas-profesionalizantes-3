@@ -1,0 +1,14 @@
+{
+  "name": "sdk-v3",
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "node run test"
+  },
+  "dependencies": {
+    "sqlite3": "^6.0.1"
+  }
+}

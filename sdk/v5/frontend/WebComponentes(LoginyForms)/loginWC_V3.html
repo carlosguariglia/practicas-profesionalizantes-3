@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>W3Admin Dashboard</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
+    <link rel="stylesheet" href="./assets/css/w3pro-4.13.css">
+    <link rel="stylesheet" href="./assets/css/w3-theme.css">
+    <link rel="stylesheet" href="./assets/css/admin-styles.css">
+</head>
+
+<body class="w3-light-grey">
+  <wc-login-form-view></wc-login-form-view>
+</body> 
+
+<script>
+// ========== FUNCIÓN FACTORY GENÉRICA ==========
+
+function createElement(tag, props = {}) {
+    const element = document.createElement(tag);
+    
+    for (const key in props) {
+        if (key == 'textContent') 
+        {
+        element.textContent = props[key];
+        }
+        else
+        {
+        element.setAttribute(key, props[key]);
+        }
+    }
+    
+    return element;
+}
+
+// ========== FUNCIONES EXTERNAS CREADORAS ==========
+
+function crearEncabezado() {
+    const logoImg = createElement('img', {
+        src: './assets/admin-logo.png',
+        alt: 'w3mix',
+        class: 'w3-image'
+    });
+
+    const signInTxt = createElement('p', {
+        textContent: 'SIGN IN'
+    });
+
+    const centerDiv = createElement('div', {
+        class: 'w3-center w3-padding-16'
+    });
+    
+    centerDiv.appendChild(logoImg);
+    centerDiv.appendChild(signInTxt);
+    
+    return centerDiv;
+}
+
+function crearCampoUsuario() {
+    const input = createElement('input', {
+        type: 'text',
+        class: 'w3-input w3-round w3-border',
+        placeholder: 'Enter Username'
+    });
+
+    const div = createElement('div', {
+        class: 'w3-margin-bottom'
+    });
+    
+    div.appendChild(input);
+    div._inputRef = input;
+    
+    return div;
+}
+
+function crearCampoPassword() {
+    const input = createElement('input', {
+        type: 'password',
+        class: 'w3-input w3-round w3-border',
+        placeholder: 'Enter Password'
+    });
+
+    const div = createElement('div', {
+        class: 'w3-margin-bottom'
+    });
+    
+    div.appendChild(input);
+    div._inputRef = input;
+    
+    return div;
+}
+
+function crearBotonSignIn() {
+    return createElement('button', {
+        type: 'button',
+        class: 'w3-button w3-round w3-margin-bottom w3-primary w3-block',
+        textContent: 'Sign In'
+    });
+}
+
+// ========== WEB COMPONENT ==========
+
+class WCLoginFormView extends HTMLElement {
+    constructor() {
+        super();
+
+        // 1. Invocamos las 4 funciones externas
+        this.encabezado    = crearEncabezado();
+        this.campoUsuario  = crearCampoUsuario();
+        this.campoPassword = crearCampoPassword();
+        this.botonSignIn   = crearBotonSignIn();
+
+        // 2. Exponemos los inputs como propiedades de la instancia
+        this.usernameInput = this.campoUsuario._inputRef;
+        this.passwordInput = this.campoPassword._inputRef;
+
+        // 3. Creamos la estructura de contenedores (usando la funcion createElement)
+        const contentDiv = createElement('div', { class: 'w3-padding-large' });
+        const cardDiv = createElement('div', { class: 'w3-white w3-round w3-margin-bottom w3-border'       });
+        const autoDiv = createElement('div', { class: 'w3-auto', style: 'width: 380px;'         });
+        const paddingInner = createElement('div', { class: 'w3-padding-32'         });
+        const paddingOuter = createElement('div', { style: 'padding: 16px 32px;'           });
+        const mainDiv = createElement('div', { class: 'w3-main', style: 'margin-top: 54px;'        });
+        const appDiv = createElement('div', { id: 'app'          });
+
+        // 4. Ensamblaje manual
+        contentDiv.appendChild(this.encabezado);
+        contentDiv.appendChild(this.campoUsuario);
+        contentDiv.appendChild(this.campoPassword);
+        contentDiv.appendChild(this.botonSignIn);
+
+        cardDiv.appendChild(contentDiv);
+        autoDiv.appendChild(cardDiv);
+        paddingInner.appendChild(autoDiv);
+        paddingOuter.appendChild(paddingInner);
+        mainDiv.appendChild(paddingOuter);
+        appDiv.appendChild(mainDiv);
+    
+        this.appendChild(appDiv);
+        
+        // 5. Bindeo del handler
+        this._onSignInClick = this.onSignInClick.bind(this);
+    }
+
+    // ========== LÓGICA DE NEGOCIO ==========
+
+    async onSignInClick() {
+        const uName = this.usernameInput.value.trim();
+        const pWord = this.passwordInput.value;
+
+        if (!uName || !pWord) {
+            alert('Por favor, complete todos los campos.');
+            return;
+        }
+        alert(`Intentando iniciar sesión con:\nUsuario: ${uName}\nContraseña: ${pWord}`);
+    }
+
+    // ========== CICLO DE VIDA ==========
+
+    connectedCallback() {
+        this.botonSignIn.addEventListener('click', this._onSignInClick);
+    }
+
+    disconnectedCallback() {
+        this.botonSignIn.removeEventListener('click', this._onSignInClick);
+    }
+}
+
+customElements.define('wc-login-form-view', WCLoginFormView);
+</script>
+</html>

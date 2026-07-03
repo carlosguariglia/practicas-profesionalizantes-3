@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>W3Admin Dashboard</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
+    <link rel="stylesheet" href="./assets/icons/font-awesome-4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="./assets/css/w3pro-4.13.css">
+    <link rel="stylesheet" href="./assets/css/w3-theme.css">
+    <link rel="stylesheet" href="./assets/css/admin-styles.css">
+</head>
+
+<body class="w3-light-grey">
+  <wc-register-form-view></wc-register-form-view>
+</body> 
+
+<script>
+// ========== FUNCIÓN FACTORY GENÉRICA ==========
+
+function createElement(tag, props = {}) {
+    const element = document.createElement(tag);
+    
+    for (const key in props) {
+        if (key == 'textContent') {
+            element.textContent = props[key];
+        } else {
+            element.setAttribute(key, props[key]);
+        }
+    }
+    
+    return element;
+}
+
+// ========== FUNCIONES EXTERNAS CREADORAS ==========
+
+function crearCampoNombre() {
+    const input = createElement('input', {
+        type: 'text',
+        id: 'register-name',
+        class: 'w3-input w3-border w3-round',
+        placeholder: 'Enter Your Name'
+    });
+
+    const label = createElement('label', {
+        for: 'register-name',
+        class: 'w3-col l2',
+        textContent: 'Name'
+    });
+
+    const colDiv = createElement('div', { class: 'w3-col l10'     });
+    colDiv.appendChild(input);
+
+    const rowDiv = createElement('div', { class: 'w3-row w3-margin-bottom'     });
+    rowDiv.appendChild(label);
+    rowDiv.appendChild(colDiv);
+
+    rowDiv._inputRef = input;
+    return rowDiv;
+}
+
+function crearCampoEmail() {
+    const input = createElement('input', { 
+        type: 'text',
+        id: 'register-email',
+        class: 'w3-input w3-border w3-round',
+        placeholder: 'Enter Your Email Address'
+    });
+
+    const label = createElement('label', {
+        for: 'register-email',
+        class: 'w3-col l2',
+        textContent: 'Email'
+    });
+
+    const colDiv = createElement('div', { class: 'w3-col l10'     });
+    colDiv.appendChild(input);
+
+    const rowDiv = createElement('div', { class: 'w3-row w3-margin-bottom'     });
+    rowDiv.appendChild(label);
+    rowDiv.appendChild(colDiv);
+
+    rowDiv._inputRef = input;
+    return rowDiv;
+}
+
+function crearCampoMobile() {
+    const input = createElement('input', {
+        type: 'text',
+        id: 'register-mobile',
+        class: 'w3-input w3-border w3-round',
+        placeholder: 'Enter Your Mobile Number'
+    });
+
+    const label = createElement('label', {
+        for: 'register-mobile',
+        class: 'w3-col l2',
+        textContent: 'Mobile Number'
+    });
+
+    const colDiv = createElement('div', { class: 'w3-col l10'     });
+    colDiv.appendChild(input);
+
+    const rowDiv = createElement('div', { class: 'w3-row w3-margin-bottom'    });
+    rowDiv.appendChild(label);
+    rowDiv.appendChild(colDiv);
+
+    rowDiv._inputRef = input;
+    return rowDiv;
+}
+
+function crearCampoPassword() {
+    const input = createElement('input', {
+        type: 'password',
+        id: 'register-password',
+        class: 'w3-input w3-border w3-round',
+        placeholder: 'Enter Password'
+    });
+
+    const label = createElement('label', {
+        for: 'register-password',
+        class: 'w3-col l2',
+        textContent: 'Password'
+    });
+
+    const colDiv = createElement('div', { class: 'w3-col l10'     });
+    colDiv.appendChild(input);
+
+    const rowDiv = createElement('div', { class: 'w3-row w3-margin-bottom'     });
+    rowDiv.appendChild(label);
+    rowDiv.appendChild(colDiv);
+
+    rowDiv._inputRef = input;
+    return rowDiv;
+}
+
+function crearCampoConfirmPassword() {
+    const input = createElement('input', {
+        type: 'password',
+        id: 'register-confirm-password',
+        class: 'w3-input w3-border w3-round',
+        placeholder: 'Confirm Password'
+    });
+
+    const label = createElement('label', {
+        for: 'register-confirm-password',
+        class: 'w3-col l2',
+        textContent: 'Confirm Password'
+    });
+
+    const colDiv = createElement('div', { class: 'w3-col l10'     });
+    colDiv.appendChild(input);
+
+    const rowDiv = createElement('div', { class: 'w3-row w3-margin-bottom'    });
+    rowDiv.appendChild(label);
+    rowDiv.appendChild(colDiv);
+
+    rowDiv._inputRef = input;
+    return rowDiv;
+}
+
+function crearEspaciador() {
+    const colDiv = createElement('div', { class: 'w3-col l2' });
+
+    const rowDiv = createElement('div', { class: 'w3-row w3-margin-bottom'     });
+    rowDiv.appendChild(colDiv);
+
+    return rowDiv;
+}
+
+function crearBotonRegister() {
+    const icon = createElement('i', { class: 'fa fa-fw fa-lock'     });
+    const btn = createElement('button', { type: 'button', class: 'w3-button w3-primary w3-round'     });
+    btn.appendChild(icon);
+    btn.appendChild(document.createTextNode(' Register'));
+
+    const colDiv = createElement('div', { class: 'w3-col l10'     });
+    colDiv.appendChild(btn);
+
+    const colEmpty = createElement('div', { class: 'w3-col l2' });
+
+
+
+    const rowDiv = createElement('div', { class: 'w3-row w3-margin-bottom'     });
+    rowDiv.appendChild(colEmpty);
+    rowDiv.appendChild(colDiv);
+
+    rowDiv._btnRef = btn;
+    return rowDiv;
+}
+
+// ========== WEB COMPONENT ==========
+
+class WCRegisterFormView extends HTMLElement {
+    constructor() {
+        super();
+
+        // 1. Invocamos las funciones externas
+        this.campoNombre = crearCampoNombre();
+        this.campoEmail = crearCampoEmail();
+        this.campoMobile = crearCampoMobile();
+        this.campoPassword = crearCampoPassword();
+        this.campoConfirmPassword = crearCampoConfirmPassword();
+        this.espaciador = crearEspaciador();
+        this.botonRegister = crearBotonRegister();
+
+        // 2. Exponemos los inputs como propiedades de la instancia
+        this.nombreInput = this.campoNombre._inputRef;
+        this.emailInput = this.campoEmail._inputRef;
+        this.mobileInput = this.campoMobile._inputRef;
+        this.passwordInput = this.campoPassword._inputRef;
+        this.confirmPasswordInput = this.campoConfirmPassword._inputRef;
+        this.registerBtn = this.botonRegister._btnRef;
+
+        // 3. Creamos la estructura de contenedores
+        const form = createElement('form', {});
+        form.appendChild(this.campoNombre);
+        form.appendChild(this.campoEmail);
+        form.appendChild(this.campoMobile);
+        form.appendChild(this.campoPassword);
+        form.appendChild(this.campoConfirmPassword);
+        form.appendChild(this.espaciador);
+        form.appendChild(this.botonRegister);
+
+        const contentDiv = createElement('div', { class: 'w3-padding-large'         });
+        contentDiv.appendChild(form);
+
+        const cardDiv = createElement('div', { class: 'w3-white w3-round w3-margin-bottom w3-border'         });
+        cardDiv.appendChild(contentDiv);
+
+        const colDiv = createElement('div', { class: 'w3-col l6'         });
+        colDiv.appendChild(cardDiv);
+
+        const rowDiv = createElement('div', { class: 'w3-row-padding w3-stretch'         });
+        rowDiv.appendChild(colDiv);
+
+        const paddingDiv = createElement('div', { style: 'padding:16px 32px'         });
+        paddingDiv.appendChild(rowDiv);
+
+        const mainDiv = createElement('div', { class: 'w3-main', style: 'margin-top:54px'        });
+        mainDiv.appendChild(paddingDiv);
+
+        const appDiv = createElement('div', { id: 'app'         });
+        appDiv.appendChild(mainDiv);
+
+        this.appendChild(appDiv);
+
+        // 4. Bindeo del handler
+        this._onRegisterClick = this.onRegisterClick.bind(this);
+    }
+
+    // ========== LÓGICA DE NEGOCIO ==========
+
+    async onRegisterClick() {
+        const name = this.nombreInput.value.trim();
+        const email = this.emailInput.value.trim();
+        const mobile = this.mobileInput.value.trim();
+        const password = this.passwordInput.value;
+        const confirmPassword = this.confirmPasswordInput.value;
+
+        if (!name || !email || !mobile || !password || !confirmPassword) {
+            alert('Por favor, complete todos los campos.');
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            alert('Las contraseñas no coinciden.');
+            return;
+        }
+
+        alert(`Intentando registrar:\nNombre: ${name}\nEmail: ${email}\nMobile: ${mobile}`);
+    }
+
+    // ========== CICLO DE VIDA ==========
+
+    connectedCallback() {
+        this.registerBtn.addEventListener('click', this._onRegisterClick);
+    }
+
+    disconnectedCallback() {
+        this.registerBtn.removeEventListener('click', this._onRegisterClick);
+    }
+}
+
+customElements.define('wc-register-form-view', WCRegisterFormView);
+</script>
+</html>
